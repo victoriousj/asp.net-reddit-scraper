@@ -13,8 +13,8 @@ namespace RedditScraper
 	class Program
 	{
 		private static string inputSubreddit;
-		public static WebClient wc;
 		private static string directory;
+		private static WebClient wc;
 		private static List<string> downloadedFiles;
 
 
@@ -79,7 +79,7 @@ namespace RedditScraper
 				wc = new WebClient();
 				using (var cts = new CancellationTokenSource())
 				{
-					cts.CancelAfter(10000);
+					cts.CancelAfter(600000);
 					Directory.CreateDirectory(directory);
 					wc.QueryString.Add("fileName", fileName);
 					wc.DownloadProgressChanged += Wc_DownloadProgressChanged;
@@ -126,15 +126,22 @@ namespace RedditScraper
 
 			Console.WriteLine($"{fileName} succesfully downloaded");
 			wc.Dispose();
-			var fileInfo = new FileInfo(directory + fileName);
-			if (fileInfo.Length == 0 || string.IsNullOrWhiteSpace(fileInfo.Extension))
+			try
 			{
-				Console.WriteLine($"{fileName} appears broken... removing it.");
-				fileInfo.Delete();
+				var fileInfo = new FileInfo(directory + fileName);
+				if (fileInfo.Length == 0 || string.IsNullOrWhiteSpace(fileInfo.Extension))
+				{
+					Console.WriteLine($"{fileName} appears broken... removing it.");
+					fileInfo.Delete();
+				}
+				else
+				{
+					downloadedFiles.Add(fileName);
+				}
 			}
-			else
+			catch (IOException)
 			{
-				downloadedFiles.Add(fileName);
+				Console.WriteLine($"{fileName} is still in use. Can not assess it.");
 			}
 		}
 	}
