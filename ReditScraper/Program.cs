@@ -20,11 +20,7 @@ namespace RedditScraper
 
 		public static void Main()
 		{
-			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
-			{
-				Console.WriteLine("Internet not availible");
-				return;
-			}
+			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) return;
 
 			GetUserInput();
 			DownloadRedditPostsAsync();
@@ -53,7 +49,7 @@ namespace RedditScraper
 
 		private static void DownloadRedditPostsAsync()
 		{
-			directory = $@"C:\{inputSubreddit}\";
+			directory = $@"C:\reddit\{inputSubreddit}\";
 			Console.WriteLine($"Creating directory at \"{directory}\"");
 			Directory.CreateDirectory(directory);
 
@@ -87,10 +83,7 @@ namespace RedditScraper
 				wc.DownloadFileCompleted += Wc_DownloadFileCompleted;
 				await wc.DownloadFileTaskAsync(new Uri(imageURL), directory + fileName);
 			}
-			catch
-			{
-				Console.WriteLine($"ERROR: {fileName} is not availible");
-			}
+			catch { }
 		}
 
 		private static void FixImageUrl(ref string imageUrl)
@@ -132,22 +125,20 @@ namespace RedditScraper
 
 		private static void Wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
 		{
-			var fileName = ((WebClient)(sender)).QueryString["fileName"];
-			if (string.IsNullOrWhiteSpace(fileName)) return;
-
 			wc.Dispose();
 			try
 			{
+				var fileName = ((WebClient)(sender)).QueryString["fileName"];
 				var fileInfo = new FileInfo(directory + fileName);
 				if 
 				(
+					fileInfo != null &&
 					fileInfo.Length == 0 || // Broken file
 					fileInfo.Length == 503 ||  // Imgur's 'missing' image 
 					string.IsNullOrWhiteSpace(fileInfo.Extension) || // Missing extension
 					fileInfo.Extension.Length > 4 // URL parameters probably passed into filename
 				)
 				{
-					Console.WriteLine($"{fileName} appears broken... removing it.");
 					fileInfo.Delete();
 				}
 			}
