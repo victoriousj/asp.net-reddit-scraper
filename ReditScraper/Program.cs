@@ -27,6 +27,8 @@ namespace RedditScraper
 			GetUserInput();
 			DownloadRedditPosts();
 			AttemptFileCleanup();
+			Console.WriteLine();
+			Show($"Go to \"{directory}\" to see your files");
 			Console.ReadLine();
 		}
 
@@ -139,7 +141,7 @@ namespace RedditScraper
 			string progressBar = progress + "--------------------------------------------------".Substring(0, 50 - progress.Length);
 			string progressPercent = "000".Substring(0, 3 - e.ProgressPercentage.ToString().Length) + e.ProgressPercentage;
 
-			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}");
+			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}", ConsoleColor.Yellow);
 		}
 
 		private static void Wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.168
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReditScraper", "ReditScraper\ReditScraper.csproj", "{DF7961CD-B5B4-4D4F-A0ED-4CC69262644C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedditScraper", "ReditScraper\RedditScraper.csproj", "{DF7961CD-B5B4-4D4F-A0ED-4CC69262644C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
