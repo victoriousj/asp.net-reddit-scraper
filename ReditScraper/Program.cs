@@ -23,7 +23,6 @@ namespace RedditScraper
 			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) return;
 
 			Console.Title = "Reddit Scraper";
-
 			GetUserInput();
 			DownloadRedditPosts();
 			AttemptFileCleanup();
@@ -63,6 +62,8 @@ namespace RedditScraper
 
 			var foundPosts = subreddit.GetTop(time).Take(amount);
 			Show($"Found {foundPosts.Count()} posts on {subreddit}");
+
+			System.Diagnostics.Process.Start(directory);
 
 			foundPosts.ToList().ForEach(x => DownloadImage(x.Url.ToString()));
 
