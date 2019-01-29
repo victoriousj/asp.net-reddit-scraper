@@ -22,6 +22,8 @@ namespace RedditScraper
 		{
 			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) return;
 
+			Console.Title = "Reddit Scraper";
+
 			GetUserInput();
 			DownloadRedditPosts();
 			AttemptFileCleanup();
@@ -30,49 +32,50 @@ namespace RedditScraper
 
 		private static void GetUserInput()
 		{
-			Console.WriteLine("Subreddit? (default \"funny\")");
-			inputSubreddit = Console.ReadLine();
+			Show("Which subreddit would you like to scrape? (default \"funny\")");
+			inputSubreddit = GetInput("subreddit");
 			inputSubreddit = !string.IsNullOrWhiteSpace(inputSubreddit) ? inputSubreddit : "funny";
 
-			Console.WriteLine("Amount: (default 100)");
-			var inputAmount = Console.ReadLine();
+			Show("How many posts would you like to try to download? (default 100)");
+			var inputAmount = GetInput("amount");
 			amount = !string.IsNullOrEmpty(inputAmount) ? int.Parse(inputAmount) : 100;
 
-			Console.WriteLine("Time Period? (default \"All Time\")");
-			Console.WriteLine("0 = All Time");
-			Console.WriteLine("1 = Past Year");
-			Console.WriteLine("2 = Past Month");
-			Console.WriteLine("3 = Past Week");
-			Console.WriteLine("4 = Past Day");
-			Console.WriteLine("5 = Past Hour");
-			if (!Enum.TryParse(Console.ReadLine(), out FromTime time)) time = FromTime.All;
+			Show("Time Period? (default \"All Time\")");
+			Show("0 = All Time");
+			Show("1 = Past Year");
+			Show("2 = Past Month");
+			Show("3 = Past Week");
+			Show("4 = Past Day");
+			Show("5 = Past Hour");
+			if (!Enum.TryParse(GetInput("From"), out FromTime time)) time = FromTime.All;
 		}
 
 		private static void DownloadRedditPosts()
 		{
 			directory = $@"C:\reddit\{inputSubreddit}\";
-			Console.WriteLine($"Creating directory at \"{directory}\"");
+			Show($"Creating directory at \"{directory}\"");
 			Directory.CreateDirectory(directory);
 
 			subreddit = new Reddit().GetSubreddit($"/r/{inputSubreddit}");
-			Console.WriteLine($"Looking on {subreddit} for {amount} posts...");
+			Show($"Looking on {subreddit} for {amount} posts...");
 
 			var foundPosts = subreddit.GetTop(time).Take(amount);
-			Console.WriteLine($"Found {foundPosts.Count()} posts on {subreddit}");
+			Show($"Found {foundPosts.Count()} posts on {subreddit}");
 
 			foundPosts.ToList().ForEach(x => DownloadImage(x.Url.ToString()));
 
 			var files = Directory.GetFiles(directory);
-			Console.WriteLine($"Downloaded {files.Length} files from  {subreddit}...");
+			Show($"Downloaded {files.Length} files from  {subreddit}...");
 		}
 
 		private static void AttemptFileCleanup()
 		{
-			Console.WriteLine($"Attempting to clean up bad files...");
+			Show($"Attempting to clean up bad files...");
 			DeleteBadFiles();
 
 			var files = Directory.GetFiles(directory);
-			Console.WriteLine($"{files.Length} remain from {subreddit}... Enjoy!");
+			Show($"{files.Length} remain from {subreddit}... Enjoy!");
+			Console.Beep();
 		}
 
 		private static void DownloadImage(string imageURL)
@@ -160,7 +163,22 @@ namespace RedditScraper
 					deletedFiles++;
 				}
 			}
-			Console.WriteLine($"Deleted {deletedFiles} files...");
+			Show($"Deleted {deletedFiles} files...");
+		}
+
+		private static string GetInput(string prompt)
+		{
+			Console.Write(prompt + ": ");
+			var input = Console.ReadLine();
+			Console.WriteLine();
+			return input;
+		}
+
+		private static void Show(string text)
+		{
+			Console.ForegroundColor = ConsoleColor.Magenta;
+			Console.WriteLine(text);
+			Console.ForegroundColor = ConsoleColor.White;
 		}
 	}
 }
