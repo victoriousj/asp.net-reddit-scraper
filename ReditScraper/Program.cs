@@ -6,7 +6,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace RedditScraper
 {
@@ -14,80 +14,83 @@ namespace RedditScraper
 	{
 		private static string inputSubreddit;
 		private static string directory;
+		private static FromTime time;
 		private static WebClient wc;
-		private static List<string> downloadedFiles;
-
+		private static int amount;
 
 		public static void Main()
 		{
-			Console.WriteLine("Subreddit?");
-			inputSubreddit = Console.ReadLine();
-			inputSubreddit = !string.IsNullOrWhiteSpace(inputSubreddit) ? inputSubreddit : "funny";
-
 			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
 			{
 				Console.WriteLine("Internet not availible");
 				return;
 			}
-			var reddit = new Reddit();
-			var subreddit = reddit.GetSubreddit($"/r/{inputSubreddit}");
-			if (subreddit == null)
-			{
-				Console.WriteLine("Subreddit not found");
-				Console.ReadLine();
-				return;
-			}
 
-			directory = $@"C:\{inputSubreddit}\";
+			GetUserInput();
+			DownloadRedditPostsAsync();
+		}
+
+		private static void GetUserInput()
+		{
+			Console.WriteLine("Subreddit?");
+			inputSubreddit = Console.ReadLine();
+			inputSubreddit = !string.IsNullOrWhiteSpace(inputSubreddit) ? inputSubreddit : "funny";
 
 			Console.WriteLine("Amount: (default 100)");
 			var inputAmount = Console.ReadLine();
-			int amount = !string.IsNullOrEmpty(inputAmount) ? int.Parse(inputAmount) : 100;
+			amount = !string.IsNullOrEmpty(inputAmount) ? int.Parse(inputAmount) : 100;
 
+			Console.WriteLine("Time Period?");
+			Console.WriteLine("0 = All Time");
+			Console.WriteLine("1 = Past Year");
+			Console.WriteLine("2 = Past Month");
+			Console.WriteLine("3 = Past Week");
+			Console.WriteLine("4 = Past Day");
+			Console.WriteLine("5 = Past Hour");
+			string timeInput = Console.ReadLine();
+			if (!Enum.TryParse(timeInput, out FromTime time)) time = FromTime.All;
+		}
+
+		private static void DownloadRedditPostsAsync()
+		{
+			directory = $@"C:\{inputSubreddit}\";
+			Console.WriteLine($"Creating directory at \"{directory}\"");
+			Directory.CreateDirectory(directory);
+
+			var subreddit = new Reddit().GetSubreddit($"/r/{inputSubreddit}");
 			Console.WriteLine($"Looking on {subreddit} for {amount} posts...");
-			var foundPosts = subreddit.GetTop(FromTime.All).Take(amount);
+
+			var foundPosts = subreddit.GetTop(time).Take(amount);
+			Console.WriteLine($"Found {foundPosts.Count()} posts on {subreddit}");
+
 			var posts = foundPosts.Select(x => x.Url.ToString());
-			var postTuple = foundPosts.Select(x => new { title = x.Title, url = x.Url.ToString() });
+			DownloadImagesAsync(posts);
 
-			Console.WriteLine($"Found {posts.Count()} posts on {subreddit}");
-
-			downloadedFiles = new List<string>();
-			foreach (var post in posts)
-			{
-				DownloadImages(post);
-			}
-
-			var createdFiles = Directory.GetFiles($@"C:\{inputSubreddit}\");
-			Console.WriteLine($"Downloaded {createdFiles.Count()} files from {subreddit}");
-
-			Console.WriteLine($"{createdFiles.Count()} remain. Enjoy!");
 			Console.ReadLine();
 		}
 
-		private static void DownloadImages(string imageURL)
+		private static async Task DownloadImagesAsync(IEnumerable<string> posts)
+		{
+			await Task.WhenAll(posts.Select(i => DownloadImages(i)));
+		}
+
+		private static async Task DownloadImages(string imageURL)
 		{
 			FixImageUrl(ref imageURL);
-			string fileName = imageURL.Split('/').Last();
-			foreach (var c in Path.GetInvalidFileNameChars())
-			{
-				fileName = fileName.Replace(c, '.');
-			}
-			Console.WriteLine($"Downloading {fileName}");
+			string fileName = CreateFileName(imageURL);
 
 			try
 			{
 				wc = new WebClient();
-				using (var cts = new CancellationTokenSource())
-				{
-					cts.CancelAfter(600000);
-					Directory.CreateDirectory(directory);
-					wc.QueryString.Add("fileName", fileName);
-					wc.DownloadProgressChanged += Wc_DownloadProgressChanged;
-					wc.DownloadFileCompleted += Wc_DownloadFileCompleted;
-					wc.DownloadFileAsync(new Uri(imageURL), directory + fileName, cts);
-				}
+				wc.QueryString.Add("fileName", fileName);
+				wc.DownloadProgressChanged += Wc_DownloadProgressChanged;
+				wc.DownloadFileCompleted += Wc_DownloadFileCompleted;
+				await wc.DownloadFileTaskAsync(new Uri(imageURL), directory + fileName);
 			}
-			catch { Console.WriteLine($"ERROR: {fileName} is not availible"); }
+			catch
+			{
+				Console.WriteLine($"ERROR: {fileName} is not availible");
+			}
 		}
 
 		private static void FixImageUrl(ref string imageUrl)
@@ -98,51 +101,58 @@ namespace RedditScraper
 					imageUrl = imageUrl.Replace("gfycat.com", "zippy.gfycat.com") + ".mp4";
 					break;
 				case string url when url.Contains(".gifv"):
-					imageUrl = imageUrl.Replace(".gifv", ".mp4");
+					imageUrl = imageUrl.Replace(".gifv", ".gif");
 					break;
 			}
 		}
 
-		private static void DeleteBrokenFiles(string[] createdFiles)
+		private static string CreateFileName(string imageURL)
 		{
-			foreach (var file in createdFiles)
+			string fileName = imageURL.Split('/').Last();
+			foreach (var c in Path.GetInvalidFileNameChars())
 			{
-				var fileInfo = new FileInfo(file);
-				if (fileInfo.Length == 0 || string.IsNullOrWhiteSpace(fileInfo.Extension)) fileInfo.Delete();
+				fileName = fileName.Replace(c, '.');
 			}
+			if (fileName.IndexOf(".") != fileName.LastIndexOf(".") && fileName.Count(x => x == '.') > 1)
+			{
+				fileName = fileName.Substring(0, fileName.LastIndexOf("."));
+			}
+			return fileName;
 		}
 
 		private static void Wc_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
 		{
 			var fileName = ((WebClient)(sender)).QueryString["fileName"];
-			Console.WriteLine($"{fileName} - {e.ProgressPercentage}%");
+		
+			string progress = new string('#', (int) Math.Round(e.ProgressPercentage / 5.0));
+			string progressBar = progress + "--------------------".Substring(0, 20 - progress.Length);
+
+			Console.WriteLine($"{fileName} - {e.ProgressPercentage}% {progressBar}");
 		}
 
 		private static void Wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
 		{
 			var fileName = ((WebClient)(sender)).QueryString["fileName"];
-
 			if (string.IsNullOrWhiteSpace(fileName)) return;
 
-			Console.WriteLine($"{fileName} succesfully downloaded");
 			wc.Dispose();
 			try
 			{
 				var fileInfo = new FileInfo(directory + fileName);
-				if (fileInfo.Length == 0 || string.IsNullOrWhiteSpace(fileInfo.Extension))
+				if 
+				(
+					fileInfo.Length == 0 || // Broken file
+					fileInfo.Length == 503 ||  // Imgur's 'missing' image 
+					string.IsNullOrWhiteSpace(fileInfo.Extension) || // Missing extension
+					fileInfo.Extension.Length > 4 // URL parameters probably passed into filename
+				)
 				{
 					Console.WriteLine($"{fileName} appears broken... removing it.");
 					fileInfo.Delete();
 				}
-				else
-				{
-					downloadedFiles.Add(fileName);
-				}
 			}
-			catch (IOException)
-			{
-				Console.WriteLine($"{fileName} is still in use. Can not assess it.");
-			}
+			catch (IOException) { }
+			catch (ArgumentException) { }
 		}
 	}
 }
