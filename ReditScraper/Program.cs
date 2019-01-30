@@ -192,7 +192,64 @@ namespace RedditScraper
 			Show($"{files.Length - deletedFiles} remain from {subreddit}...");
 			Console.WriteLine();
 		}
+		private static void ConvertVideos()
+		{
+			var files = Directory.GetFiles(directory).Where(x => x.Contains("webm"));
+			if (files.Any())
+			{
+				Show("It appears there were some .webm files downloaded. These can be hard");
+				Show("to play. Would you like to convert these videos? Short videos will be");
+				Show("converted to .gifs and longer ones will be .mp4 (default No)");
+				Show("1 = Yes");
+				Show("2 = No");
 
+				if (!int.TryParse(GetInput("convert"), out int answer)) answer = 2;
+				if (answer != 1) return;
+
+				Show("Converting videos... This may take a couple of minutes...");
+				int convertedVideoCount = 1;
+				int gifCount = 0;
+				int mp4Count = 0;
+				var ffMpeg = new FFMpegConverter();
+				foreach (var file in files)
+				{
+					Console.ForegroundColor = ConsoleColor.Magenta;
+					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
+					Console.ForegroundColor = ConsoleColor.White;
+					Console.Write(Path.GetFileName(file));
+					Console.WriteLine();
+
+					var fileInfo = new FileInfo(file);
+					if (fileInfo.Length < 21000)
+					{
+						var newFileName = file.Replace(Format.webm, Format.gif);
+						ffMpeg.ConvertMedia(file, newFileName, Format.gif);
+						gifCount++;
+					} 
+					else
+					{
+						var newFileName = file.Replace(Format.webm, Format.mp4);
+						ffMpeg.ConvertMedia(file, newFileName, Format.mp4);
+						mp4Count++;
+					}
+					fileInfo.Delete();
+					convertedVideoCount++;
+				}
+				Show("All videos have been converted...");
+				Console.Write(gifCount);
+				Console.ForegroundColor = ConsoleColor.Magenta;
+				Console.WriteLine(" gif's have been created...");
+				Console.ForegroundColor = ConsoleColor.White;
+				Console.Write(mp4Count);
+				Console.ForegroundColor = ConsoleColor.Magenta;
+				Console.WriteLine(" .mp4's have been created...");
+				Console.ForegroundColor = ConsoleColor.White;
+				Console.WriteLine();
+
+				var ffmpegFile = new FileInfo("ffmpeg.exe");
+				ffmpegFile.Delete();
+			}
+		}
 		private static string GetInput(string prompt)
 		{
 			Console.Write(prompt + ": ");
