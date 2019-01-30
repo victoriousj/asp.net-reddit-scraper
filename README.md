@@ -11,7 +11,7 @@ subreddit and save them locally, all with just a couple of keystrokes. Enjoy!
 
 ## Usage
 
-Use Git to clone the repository. Open the solution inVisual Studio if you want to develop it.
+Use Git to clone the repository. Open the solution in Visual Studio if you want to develop it.
 
 You can also run the included .exe which contains all the assemblies needed run this, though
 who would trust an .exe from a random person's Github page?
