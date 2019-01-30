@@ -11,9 +11,9 @@ subreddit and save them locally, all with just a couple of keystrokes. Enjoy!
 
 ## Usage
 
-Use Git to clone the repository. Open the solution inVisual Studio if you want to develop it.
+Use Git to clone the repository. Open the solution in Visual Studio if you want to develop it.
 
-You can also run the included .exe which contains all the assemblies needed run this, though
+You can also run the included .exe which contains all the assemblies needed to run this, though
 who would trust an .exe from a random person's Github page?
 
 ```bash
@@ -30,3 +30,9 @@ edit this and make it your own.
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
