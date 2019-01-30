@@ -1,6 +1,7 @@
 ﻿# Reddit Scraper
 
-Pilot a star ship through space. Navigate through a perilous sector filled with hostile enemies. See how far you can get!
+No developer wants to do things the slow way. Grab the highest ranking posts of all time from your favorite
+subreddit and save them locally, all with just a couple of keystrokes. Enjoy!
 
 ---
 
