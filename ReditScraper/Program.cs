@@ -1,4 +1,5 @@
-﻿using RedditSharp;
+﻿using NReco.VideoConverter;
+using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.ComponentModel;
@@ -14,8 +15,10 @@ namespace RedditScraper
 		private static string inputSubreddit;
 		private static Subreddit subreddit;
 		private static string directory;
+		private static int fileIndex;
 		private static FromTime time;
 		private static int amount;
+
 
 		public static void Main()
 		{
@@ -24,9 +27,12 @@ namespace RedditScraper
 			Console.Title = "Reddit Scraper";
 			GetUserInput();
 			DownloadRedditPosts();
-			AttemptFileCleanup();
-			Console.WriteLine();
-			Show($"Go to \"{directory}\" to see your files");
+			DeleteBadFiles();
+			ConvertVideos();
+
+			Show("All steps complete...");
+			Show($"Go to \"{directory}\" to see your files. Enjoy!");
+			Console.Beep();
 			Console.ReadLine();
 		}
 
@@ -34,11 +40,13 @@ namespace RedditScraper
 		{
 			Show("Which subreddit would you like to scrape? (default \"funny\")");
 			inputSubreddit = GetInput("subreddit");
-			inputSubreddit = !string.IsNullOrWhiteSpace(inputSubreddit) ? inputSubreddit : "funny";
+			if (string.IsNullOrWhiteSpace(inputSubreddit))
+			{
+				inputSubreddit = "funny";
+			}
 
-			Show("How many posts would you like to try to download? (default 100)");
-			var inputAmount = GetInput("amount");
-			amount = !string.IsNullOrEmpty(inputAmount) ? int.Parse(inputAmount) : 100;
+			Show("How many posts would you like to try to download? (default 25)");
+			if (!int.TryParse(GetInput("amount"), out amount)) amount = 25;
 
 			Show("Time Period? (default \"All Time\")");
 			Show("0 = All Time");
@@ -47,7 +55,7 @@ namespace RedditScraper
 			Show("3 = Past Week");
 			Show("4 = Past Day");
 			Show("5 = Past Hour");
-			if (!Enum.TryParse(GetInput("From"), out FromTime time)) time = FromTime.All;
+			if (!Enum.TryParse(GetInput("from"), out FromTime time)) time = FromTime.All;
 		}
 
 		private static void DownloadRedditPosts()
@@ -67,17 +75,9 @@ namespace RedditScraper
 			foundPosts.ToList().ForEach(x => DownloadImage(x.Url.ToString()));
 
 			var files = Directory.GetFiles(directory);
+			Console.WriteLine();
 			Show($"Downloaded {files.Length} files from  {subreddit}...");
-		}
-
-		private static void AttemptFileCleanup()
-		{
-			Show($"Attempting to clean up bad files...");
-			DeleteBadFiles();
-
-			var files = Directory.GetFiles(directory);
-			Show($"{files.Length} remain from {subreddit}... Enjoy!");
-			Console.Beep();
+			Console.WriteLine();
 		}
 
 		private static void DownloadImage(string imageURL)
@@ -94,7 +94,7 @@ namespace RedditScraper
 			switch (imageUrl)
 			{
 				case string url when url.Contains("gfycat.com"):
-					imageUrl = imageUrl.Replace("gfycat.com", "zippy.gfycat.com") + ".mp4";
+					imageUrl = imageUrl.Replace("gfycat.com", "giant.gfycat.com") + ".webm";
 					break;
 				case string url when url.Contains(".gifv"):
 					imageUrl = imageUrl.Replace(".gifv", ".gif");
@@ -113,7 +113,7 @@ namespace RedditScraper
 			{
 				fileName = fileName.Substring(0, fileName.LastIndexOf("."));
 			}
-			return fileName;
+			return $"{++fileIndex}-{fileName}";
 		}
 
 		public static void DownloadFile(Uri uri, string destination, string fileName)
@@ -154,18 +154,96 @@ namespace RedditScraper
 
 		private static void DeleteBadFiles()
 		{
+			Show("Attempt to clean up potionally corrupted files? (default yes)");
+			Show("1 = Yes");
+			Show("2 = No");
+
+			if (!int.TryParse(GetInput("clean"), out int answer)) answer = 1;
+			if (answer != 1) return;
+
 			var files = Directory.GetFiles(directory);
-			var deletedFiles = 0;
+			int deletedFiles = 0;
+			int brokenFiles = 0;
+			int removedFiles = 0;
+			int badExtensionFiles = 0;
 			foreach (var file in files)
 			{
 				var fileInfo = new FileInfo(file);
-				if (fileInfo != null && fileInfo.Length == 0 || fileInfo.Length == 503 ||  string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 4)
+				if (fileInfo != null)
 				{
-					fileInfo.Delete();
-					deletedFiles++;
+					if (fileInfo.Length == 0) brokenFiles++;
+					if (fileInfo.Length == 503) removedFiles++;
+					if (string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 6) badExtensionFiles++;
+
+					if (fileInfo.Length == 0 || fileInfo.Length == 503 || string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 6)
+					{
+						fileInfo.Delete();
+						deletedFiles++;
+					}
 				}
 			}
-			Show($"Deleted {deletedFiles} files...");
+			Show($"{brokenFiles} were improperly downloaded...");
+			Show($"{removedFiles} are no longer availible...");
+			Show($"{badExtensionFiles} have an unknown file extension...");
+			Console.WriteLine();
+			Show($"{deletedFiles} files have been deleted overall...");
+			Show($"{files.Length - deletedFiles} remain from {subreddit}...");
+			Console.WriteLine();
+		}
+
+		private static void ConvertVideos()
+		{
+			var files = Directory.GetFiles(directory).Where(x => x.Contains("webm"));
+			if (files.Any())
+			{
+				Show("It appears there were some .webm files downloaded. These can be hard");
+				Show("to play. Would you like to convert these videos to?");
+				Show("Short videos will be converted to .gifs and longer ones will be .mp4 (default No)");
+				Show("1 = Yes");
+				Show("2 = No");
+
+				if (!int.TryParse(GetInput("convert"), out int answer)) answer = 2;
+				if (answer != 1) return;
+
+				Show("Converting videos... This may take a couple of minutes...");
+				int convertedVideoCount = 1;
+				int gifCount = 0;
+				int mp4Count = 0;
+				var ffMpeg = new FFMpegConverter();
+				foreach (var file in files)
+				{
+					Console.ForegroundColor = ConsoleColor.Magenta;
+					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
+					Console.ForegroundColor = ConsoleColor.White;
+					Console.Write(Path.GetFileName(file));
+					Console.WriteLine();
+
+					var fileInfo = new FileInfo(file);
+					if (fileInfo.Length < 21000)
+					{
+						var newFileName = file.Replace(Format.webm, Format.gif);
+						ffMpeg.ConvertMedia(file, newFileName, Format.gif);
+						gifCount++;
+					} 
+					else
+					{
+						var newFileName = file.Replace(Format.webm, Format.mp4);
+						ffMpeg.ConvertMedia(file, newFileName, Format.mp4);
+						mp4Count++;
+					}
+					convertedVideoCount++;
+				}
+				Show("All videos have been converted...");
+				Console.Write(gifCount);
+				Console.ForegroundColor = ConsoleColor.DarkMagenta;
+				Console.Write(" gif's have been created...");
+				Console.ForegroundColor = ConsoleColor.White;
+				Console.Write(mp4Count);
+				Console.ForegroundColor = ConsoleColor.DarkMagenta;
+				Console.Write(" .mp4's have been created...");
+				Console.ForegroundColor = ConsoleColor.White;
+				Console.WriteLine();
+			}
 		}
 
 		private static string GetInput(string prompt)
