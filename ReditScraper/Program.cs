@@ -35,13 +35,14 @@ namespace RedditScraper
  | | \ \  __/ (_| | (_| | | |_   ____) | (__| | | (_| | |_) |  __/ |   
  |_|  \_\___|\__,_|\__,_|_|\__| |_____/ \___|_|  \__,_| .__/ \___|_|   
                                                       | |              
-                                                      |_|              ",
+   by: victor d. johnson                              |_|              
+   this code is under MIT licence",
 				string.Empty,
 				@"Enter the name of a subreddit (without spaces) and specify an amount of",
-				@"photos and a time frame. This program will download an image from each",
-				@"post found on the subreddit and place the image in a directory on your",
-				@" computer. This will then try to clean up broken files and convert web",
-				@"        movies into video files that can be played locally.",
+				@"of photos and a time frame. This program will download an image from each",
+				@"post found on the subreddit and place the image in a directory on your ",
+				@"computer. This will then try to clean up broken files and convert web ",
+				@"movies into video files that can be played locally.",
 				string.Empty
 			});
 
@@ -85,11 +86,19 @@ namespace RedditScraper
 			_directory = $@"C:\reddit\{_inputSubreddit}\";
 			Show(new[] { $"Creating directory at \"{_directory}\"", string.Empty });
 
-			Directory.CreateDirectory(_directory);
-			System.Diagnostics.Process.Start(_directory);
-
-			_subreddit = new Reddit().GetSubreddit($"/r/{_inputSubreddit}");
 			Show(new[] { $"Looking on {_subreddit} for {_amount} posts…", string.Empty });
+			_subreddit = new Reddit().GetSubreddit($"/r/{_inputSubreddit}");
+
+			if (_subreddit == null)
+			{
+				Show(new[]
+				{
+					$"/r/{_inputSubreddit} doesn't appear to be a subreddit…",
+					"Try again…",
+					string.Empty
+				});
+				GetUserInput();
+			}
 
 			var foundPosts = _subreddit
 				.GetTop(_time)
@@ -97,6 +106,9 @@ namespace RedditScraper
 				.Select(x => x.Url.ToString());
 
 			Show(new[] { $"Found {foundPosts.Count()} posts on {_subreddit}", string.Empty });
+
+			Directory.CreateDirectory(_directory);
+			System.Diagnostics.Process.Start(_directory);
 
 			foreach(var foundPost in foundPosts)
 			{
@@ -162,7 +174,9 @@ namespace RedditScraper
 		}
 
 		private static void DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
-		{ lock (e.UserState) { Monitor.Pulse(e.UserState);} }
+		{
+			lock (e.UserState) { Monitor.Pulse(e.UserState);}
+		}
 
 		private static void DeleteBadFiles()
 		{
@@ -212,10 +226,10 @@ namespace RedditScraper
 				$"{brokenFiles} were improperly downloaded…",
 				$"{removedFiles} are no longer availible…",
 				$"{badExtensionFiles} have an unknown file extension…",
-				"\n",
+				string.Empty,
 				$"{deletedFiles} files have been deleted overall…",
 				$"{files.Length - deletedFiles} remain from {_subreddit}…",
-				"\n",
+				string.Empty,
 			});
 		}
 		private static void ConvertVideos()
@@ -249,7 +263,7 @@ namespace RedditScraper
 					Console.WriteLine();
 
 					var fileInfo = new FileInfo(file);
-					string outputFormat = fileInfo.Length < 3100000 ? Format.gif : Format.mp4;
+					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
 
 					var newFileName = file.Replace(Format.webm, outputFormat);
 					ffMpeg.ConvertMedia(file, newFileName, outputFormat);
@@ -265,10 +279,9 @@ namespace RedditScraper
 					$"{gifCount} gif's have been created…",
 					$"{mp4Count}.mp4's have been created…"
 				});
-				Console.WriteLine();
 
-				var ffmpegFile = new FileInfo("ffmpeg.exe");
-				ffmpegFile.Delete();
+				new FileInfo("ffmpeg.exe").Delete();
+				Console.WriteLine();
 			}
 		}
 		private static string GetInput(string prompt, string defaultAnswer)
