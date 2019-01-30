@@ -1,4 +1,5 @@
-﻿using RedditSharp;
+﻿using NReco.VideoConverter;
+using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.ComponentModel;
@@ -27,6 +28,7 @@ namespace RedditScraper
 			GetUserInput();
 			DownloadRedditPosts();
 			DeleteBadFiles();
+			ConvertVideos();
 
 			Show("All steps complete...");
 			Show($"Go to \"{directory}\" to see your files. Enjoy!");
