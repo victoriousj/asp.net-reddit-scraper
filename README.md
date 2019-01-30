@@ -4,13 +4,16 @@ Pilot a star ship through space. Navigate through a perilous sector filled with 
 
 ---
 
-![Reddit Scraper](./redditscraper.png?raw=true 'A screen shot of someone looking for a little laughter')
+![Reddit Scraper](./redditscraper.png?raw=true "A screen shot of someone looking for a little laughter")
 
 ---
 
 ## Usage
 
-Use Git to clone the repository. You can run the .exe included if you want to run it, and Visual Studio if you want to develop it.
+Use Git to clone the repository. Open the solution inVisual Studio if you want to develop it.
+
+You can also run the included .exe which contains all the assemblies needed run this, though
+who would trust an .exe from a random person's Github page?
 
 ```bash
 git clone https://github.com/victoriousj/asp.net-reddit-scraper.git
