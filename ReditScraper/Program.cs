@@ -1,5 +1,4 @@
-﻿using NReco.VideoConverter;
-using RedditSharp;
+﻿using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.ComponentModel;
@@ -28,7 +27,6 @@ namespace RedditScraper
 			GetUserInput();
 			DownloadRedditPosts();
 			DeleteBadFiles();
-			ConvertVideos();
 
 			Show("All steps complete...");
 			Show($"Go to \"{directory}\" to see your files. Enjoy!");
@@ -45,6 +43,7 @@ namespace RedditScraper
 				inputSubreddit = "funny";
 			}
 
+			Console.WriteLine();
 			Show("How many posts would you like to try to download? (default 25)");
 			if (!int.TryParse(GetInput("amount"), out amount)) amount = 25;
 
@@ -56,22 +55,25 @@ namespace RedditScraper
 			Show("4 = Past Day");
 			Show("5 = Past Hour");
 			if (!Enum.TryParse(GetInput("from"), out FromTime time)) time = FromTime.All;
+			Console.WriteLine();
 		}
 
 		private static void DownloadRedditPosts()
 		{
 			directory = $@"C:\reddit\{inputSubreddit}\";
 			Show($"Creating directory at \"{directory}\"");
+			Console.WriteLine();
 			Directory.CreateDirectory(directory);
 
 			subreddit = new Reddit().GetSubreddit($"/r/{inputSubreddit}");
 			Show($"Looking on {subreddit} for {amount} posts...");
+			Console.WriteLine();
 
 			var foundPosts = subreddit.GetTop(time).Take(amount);
 			Show($"Found {foundPosts.Count()} posts on {subreddit}");
+			Console.WriteLine();
 
 			System.Diagnostics.Process.Start(directory);
-
 			foundPosts.ToList().ForEach(x => DownloadImage(x.Url.ToString()));
 
 			var files = Directory.GetFiles(directory);
@@ -141,7 +143,7 @@ namespace RedditScraper
 			string progressBar = progress + "--------------------------------------------------".Substring(0, 50 - progress.Length);
 			string progressPercent = "000".Substring(0, 3 - e.ProgressPercentage.ToString().Length) + e.ProgressPercentage;
 
-			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}", ConsoleColor.Yellow);
+			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}");
 		}
 
 		private static void Wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
@@ -189,61 +191,6 @@ namespace RedditScraper
 			Show($"{deletedFiles} files have been deleted overall...");
 			Show($"{files.Length - deletedFiles} remain from {subreddit}...");
 			Console.WriteLine();
-		}
-
-		private static void ConvertVideos()
-		{
-			var files = Directory.GetFiles(directory).Where(x => x.Contains("webm"));
-			if (files.Any())
-			{
-				Show("It appears there were some .webm files downloaded. These can be hard");
-				Show("to play. Would you like to convert these videos to?");
-				Show("Short videos will be converted to .gifs and longer ones will be .mp4 (default No)");
-				Show("1 = Yes");
-				Show("2 = No");
-
-				if (!int.TryParse(GetInput("convert"), out int answer)) answer = 2;
-				if (answer != 1) return;
-
-				Show("Converting videos... This may take a couple of minutes...");
-				int convertedVideoCount = 1;
-				int gifCount = 0;
-				int mp4Count = 0;
-				var ffMpeg = new FFMpegConverter();
-				foreach (var file in files)
-				{
-					Console.ForegroundColor = ConsoleColor.Magenta;
-					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
-					Console.ForegroundColor = ConsoleColor.White;
-					Console.Write(Path.GetFileName(file));
-					Console.WriteLine();
-
-					var fileInfo = new FileInfo(file);
-					if (fileInfo.Length < 21000)
-					{
-						var newFileName = file.Replace(Format.webm, Format.gif);
-						ffMpeg.ConvertMedia(file, newFileName, Format.gif);
-						gifCount++;
-					} 
-					else
-					{
-						var newFileName = file.Replace(Format.webm, Format.mp4);
-						ffMpeg.ConvertMedia(file, newFileName, Format.mp4);
-						mp4Count++;
-					}
-					convertedVideoCount++;
-				}
-				Show("All videos have been converted...");
-				Console.Write(gifCount);
-				Console.ForegroundColor = ConsoleColor.DarkMagenta;
-				Console.Write(" gif's have been created...");
-				Console.ForegroundColor = ConsoleColor.White;
-				Console.Write(mp4Count);
-				Console.ForegroundColor = ConsoleColor.DarkMagenta;
-				Console.Write(" .mp4's have been created...");
-				Console.ForegroundColor = ConsoleColor.White;
-				Console.WriteLine();
-			}
 		}
 
 		private static string GetInput(string prompt)
