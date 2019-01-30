@@ -197,8 +197,8 @@ namespace RedditScraper
 			if (files.Any())
 			{
 				Show("It appears there were some .webm files downloaded. These can be hard");
-				Show("to play. Would you like to convert these videos to?");
-				Show("Short videos will be converted to .gifs and longer ones will be .mp4 (default No)");
+				Show("to play. Would you like to convert these videos? Short videos will be");
+				Show("converted to .gifs and longer ones will be .mp4 (default No)");
 				Show("1 = Yes");
 				Show("2 = No");
 
@@ -231,18 +231,22 @@ namespace RedditScraper
 						ffMpeg.ConvertMedia(file, newFileName, Format.mp4);
 						mp4Count++;
 					}
+					fileInfo.Delete();
 					convertedVideoCount++;
 				}
 				Show("All videos have been converted...");
 				Console.Write(gifCount);
-				Console.ForegroundColor = ConsoleColor.DarkMagenta;
-				Console.Write(" gif's have been created...");
+				Console.ForegroundColor = ConsoleColor.Magenta;
+				Console.WriteLine(" gif's have been created...");
 				Console.ForegroundColor = ConsoleColor.White;
 				Console.Write(mp4Count);
-				Console.ForegroundColor = ConsoleColor.DarkMagenta;
-				Console.Write(" .mp4's have been created...");
+				Console.ForegroundColor = ConsoleColor.Magenta;
+				Console.WriteLine(" .mp4's have been created...");
 				Console.ForegroundColor = ConsoleColor.White;
 				Console.WriteLine();
+
+				var ffmpegFile = new FileInfo("ffmpeg.exe");
+				ffmpegFile.Delete();
 			}
 		}
 
