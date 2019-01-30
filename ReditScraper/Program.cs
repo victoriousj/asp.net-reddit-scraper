@@ -1,5 +1,4 @@
-﻿using NReco.VideoConverter;
-using RedditSharp;
+﻿using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.ComponentModel;
@@ -28,7 +27,6 @@ namespace RedditScraper
 			GetUserInput();
 			DownloadRedditPosts();
 			DeleteBadFiles();
-			ConvertVideos();
 
 			Show("All steps complete...");
 			Show($"Go to \"{directory}\" to see your files. Enjoy!");
@@ -45,6 +43,7 @@ namespace RedditScraper
 				inputSubreddit = "funny";
 			}
 
+			Console.WriteLine();
 			Show("How many posts would you like to try to download? (default 25)");
 			if (!int.TryParse(GetInput("amount"), out amount)) amount = 25;
 
@@ -56,22 +55,25 @@ namespace RedditScraper
 			Show("4 = Past Day");
 			Show("5 = Past Hour");
 			if (!Enum.TryParse(GetInput("from"), out FromTime time)) time = FromTime.All;
+			Console.WriteLine();
 		}
 
 		private static void DownloadRedditPosts()
 		{
 			directory = $@"C:\reddit\{inputSubreddit}\";
 			Show($"Creating directory at \"{directory}\"");
+			Console.WriteLine();
 			Directory.CreateDirectory(directory);
 
 			subreddit = new Reddit().GetSubreddit($"/r/{inputSubreddit}");
 			Show($"Looking on {subreddit} for {amount} posts...");
+			Console.WriteLine();
 
 			var foundPosts = subreddit.GetTop(time).Take(amount);
 			Show($"Found {foundPosts.Count()} posts on {subreddit}");
+			Console.WriteLine();
 
 			System.Diagnostics.Process.Start(directory);
-
 			foundPosts.ToList().ForEach(x => DownloadImage(x.Url.ToString()));
 
 			var files = Directory.GetFiles(directory);
@@ -141,7 +143,7 @@ namespace RedditScraper
 			string progressBar = progress + "--------------------------------------------------".Substring(0, 50 - progress.Length);
 			string progressPercent = "000".Substring(0, 3 - e.ProgressPercentage.ToString().Length) + e.ProgressPercentage;
 
-			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}", ConsoleColor.Yellow);
+			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}");
 		}
 
 		private static void Wc_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
@@ -190,7 +192,6 @@ namespace RedditScraper
 			Show($"{files.Length - deletedFiles} remain from {subreddit}...");
 			Console.WriteLine();
 		}
-
 		private static void ConvertVideos()
 		{
 			var files = Directory.GetFiles(directory).Where(x => x.Contains("webm"));
@@ -249,7 +250,6 @@ namespace RedditScraper
 				ffmpegFile.Delete();
 			}
 		}
-
 		private static string GetInput(string prompt)
 		{
 			Console.Write(prompt + ": ");
