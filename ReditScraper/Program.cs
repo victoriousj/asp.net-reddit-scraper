@@ -23,8 +23,6 @@ namespace RedditScraper
 
 		public static void Main()
 		{
-			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) return;
-
 			Console.Title = "Reddit Scraper";
 			Show(new[]
 			{
@@ -45,6 +43,14 @@ namespace RedditScraper
 				@"movies into video files that can be played locally.",
 				string.Empty
 			});
+
+			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+			{
+				Show(new[] { "Internet connection not availible, dawg", string.Empty });
+				Show(new[] { "Try again, later."});
+				Console.ReadLine();
+				return;
+			}
 
 
 			GetUserInput();
