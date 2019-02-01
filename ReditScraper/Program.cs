@@ -14,6 +14,7 @@ namespace RedditScraper
 	{
 		private static string _inputSubreddit;
 		private static Subreddit _subreddit;
+		private static int _downloadColor;
 		private static string _directory;
 		private static int _fileIndex;
 		private static FromTime _time;
@@ -201,11 +202,12 @@ namespace RedditScraper
 
 		private static void DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
 		{
+			FlipColors();
 			lock (e.UserState)
 			{
 				Monitor.Pulse(e.UserState);
 			}
-			_magOrCy = !_magOrCy;
+		
 		}
 
 		private static void DeleteBadFiles()
@@ -274,13 +276,10 @@ namespace RedditScraper
 				Show(new[] { "Converting videos... This may take a couple of minutes...", string.Empty });
 				foreach (var file in files)
 				{
-					if (convertedVideoCount % 5 == 0)
-					{
-						_magOrCy = !_magOrCy;
-					}
-					Console.ForegroundColor = _magOrCy ? ConsoleColor.Magenta : ConsoleColor.Cyan;
+					
+					Console.ForegroundColor = FlipColors();
 					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
-					Console.ForegroundColor = ConsoleColor.White;
+					Console.ForegroundColor = FlipColors();
 					Console.Write(Path.GetFileName(file) + "...");
 					Console.WriteLine();
 
@@ -351,8 +350,24 @@ namespace RedditScraper
 				}
 			} while (res != ConsoleKey.Y && res != ConsoleKey.N && res != ConsoleKey.Enter);
 
+			Console.WriteLine(res == ConsoleKey.Y || res == ConsoleKey.Enter ? "yes" : "no");
 			Console.WriteLine();
 			return (res == ConsoleKey.Y || res == ConsoleKey.Enter);
+		}
+
+		public static ConsoleColor FlipColors()
+		{
+			_downloadColor++;
+			switch (_downloadColor)
+			{
+				case 1:
+					return Console.ForegroundColor = ConsoleColor.White;
+				case 2:
+					return Console.ForegroundColor = ConsoleColor.Cyan;
+				default:
+					_downloadColor = 0;
+					return Console.ForegroundColor = ConsoleColor.Magenta;
+			}
 		}
 	}
 }
