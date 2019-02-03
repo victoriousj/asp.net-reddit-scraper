@@ -2,6 +2,7 @@
 using RedditSharp;
 using RedditSharp.Things;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -15,8 +16,8 @@ namespace RedditScraper
 		private static string _inputSubreddit;
 		private static Subreddit _subreddit;
 		private static int _downloadColor;
-		private static string _directory;
-		private static int _fileIndex;
+        private static string _directory;
+        private static int _fileIndex;
 		private static FromTime _time;
 		private static bool _magOrCy;
 		private static int _amount;
@@ -24,10 +25,10 @@ namespace RedditScraper
 
 		public static void Main()
 		{
-			Intro();
-			GetUserInput();
-			DownloadRedditPosts();
-			DeleteBadFiles();
+            Intro();
+            GetUserInput();
+            DownloadRedditPosts();
+            DeleteBadFiles();
 			ConvertVideos();
 
 			Show(new[] {
@@ -212,45 +213,58 @@ namespace RedditScraper
 
 		private static void DeleteBadFiles()
 		{
-			if (!Confirm(new[] { "Attempt to clean up potionally corrupted files? [Y/n]"})) return;
-
 			int badExtensionFiles = 0;
 			int removedFiles = 0;
 			int deletedFiles = 0;
 			int brokenFiles = 0;
 
+            var filesToDelete = new List<string>();
 			var files = Directory.GetFiles(_directory);
 			foreach (var file in files)
 			{
 				var fileInfo = new FileInfo(file);
-				if (fileInfo != null)
+                if (fileInfo == null) return;
+				if (fileInfo.Length == 0) brokenFiles++;
+				if (fileInfo.Length == 503) removedFiles++;
+				if (string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 6)
 				{
-					if (fileInfo.Length == 0) brokenFiles++;
-					if (fileInfo.Length == 503) removedFiles++;
-					if (string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 6)
-					{
-						badExtensionFiles++;
-					}
-
-					if 
-					(
-						fileInfo.Length == 0 || 
-						fileInfo.Length == 503 || 
-						fileInfo.Extension.Length > 6 ||
-						string.IsNullOrWhiteSpace(fileInfo.Extension)
-					)
-					{
-						fileInfo.Delete();
-						deletedFiles++;
-					}
+					badExtensionFiles++;
 				}
-			}
-			Show(new[]
-			{
-				$"{brokenFiles} were improperly downloaded...",
-				$"{removedFiles} are no longer availible...",
-				$"{badExtensionFiles} have an unknown file extension...",
+
+				if 
+				(
+					fileInfo.Length == 0 || 
+					fileInfo.Length == 503 || 
+					fileInfo.Extension.Length > 6 ||
+					string.IsNullOrWhiteSpace(fileInfo.Extension)
+				)
+                {
+                    filesToDelete.Add(file);
+                }
+            }
+            if (!filesToDelete.Any()) return;
+
+            Show(new[]
+            {
+                "Looking through the files downloaded, there were:",
+                $"{brokenFiles} were improperly downloaded...",
+                $"{removedFiles} are no longer availible...",
+                $"{badExtensionFiles} have an unknown file extension...",
 				string.Empty,
+            });
+
+            if (!Confirm(new[] { "Remove corrupted files? [Y/n]" })) return;
+
+            filesToDelete.ForEach(x =>
+            {
+                new FileInfo(x).Delete();
+                deletedFiles++;
+            });
+
+
+            Show(new[]
+			{
+                string.Empty,
 				$"{deletedFiles} files have been deleted overall...",
 				$"{files.Length - deletedFiles} remain from {_subreddit}...",
 				string.Empty,
@@ -278,21 +292,31 @@ namespace RedditScraper
 				{
 					
 					Console.ForegroundColor = FlipColors();
-					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
+					Console.Write($"({convertedVideoCount} of {files.Count()})");
 					Console.ForegroundColor = FlipColors();
+                    Console.Write(" Converting: ");
+                    Console.ForegroundColor = FlipColors();
 					Console.Write(Path.GetFileName(file) + "...");
+					Console.ForegroundColor = FlipColors();
 					Console.WriteLine();
 
 					var fileInfo = new FileInfo(file);
 					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
 
 					var newFileName = file.Replace(Format.webm, outputFormat);
-					ffMpeg.ConvertMedia(file, newFileName, outputFormat);
+                    try
+                    {
+					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
 
-					((outputFormat == Format.gif) ? ref gifCount : ref mp4Count) += 1;
+					    (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
 
-					fileInfo.Delete();
-					convertedVideoCount++;
+					    fileInfo.Delete();
+					    convertedVideoCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Write(ex.Message);
+                    }
 				}
 				Show(new[]
 				{
