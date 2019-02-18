@@ -198,20 +198,30 @@ namespace RedditScraper
 			string progressPercent = "000".Substring(0, 3 - e.ProgressPercentage.ToString().Length) + e.ProgressPercentage;
 
 			string fileName = ((WebClient)sender).QueryString["fileName"];
-			Console.WriteLine($"{fileName} - {progressPercent}% {progressBar}");
+            Console.Write($"\r{fileName} - {progressPercent}% {progressBar}");
 		}
 
 		private static void DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
 		{
-			FlipColors();
-			lock (e.UserState)
+            if (e.Error == null)
+            {
+                Console.WriteLine();
+            } 
+            else
+            {
+                string fileName = ((WebClient)sender).QueryString["fileName"];
+                Console.WriteLine($"{fileName} ERROR: {e.Error.Message}");
+
+            }
+            FlipColors();
+            lock (e.UserState)
 			{
 				Monitor.Pulse(e.UserState);
 			}
 		
 		}
 
-		private static void DeleteBadFiles()
+        private static void DeleteBadFiles()
 		{
 			int badExtensionFiles = 0;
 			int removedFiles = 0;
@@ -286,19 +296,17 @@ namespace RedditScraper
 				int mp4Count = 0;
 				int convertedVideoCount = 1;
 				var ffMpeg = new FFMpegConverter();
+                ffMpeg.ConvertProgress += UpdateProgress;
 				files = files.OrderBy(x => int.Parse(Path.GetFileName(x.Split('-')[0])));
 				Show(new[] { "Converting videos... This may take a couple of minutes...", string.Empty });
 				foreach (var file in files)
 				{
 					
 					Console.ForegroundColor = FlipColors();
-					Console.Write($"({convertedVideoCount} of {files.Count()})");
-					Console.ForegroundColor = FlipColors();
-                    Console.Write(" Converting: ");
+					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
                     Console.ForegroundColor = FlipColors();
-					Console.Write(Path.GetFileName(file) + "...");
+					Console.Write(Path.GetFileName(file) + " " + new string(' ', 57));
 					Console.ForegroundColor = FlipColors();
-					Console.WriteLine();
 
 					var fileInfo = new FileInfo(file);
 					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
@@ -308,9 +316,11 @@ namespace RedditScraper
                     {
 					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
 
-					    (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
+                        Console.WriteLine();
+                        Console.ForegroundColor = FlipColors();
+                        (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
 
-					    fileInfo.Delete();
+                        fileInfo.Delete();
 					    convertedVideoCount++;
                     }
                     catch (Exception ex)
@@ -331,7 +341,26 @@ namespace RedditScraper
 				Console.WriteLine();
 			}
 		}
-		private static string GetInput(string prompt, string defaultAnswer)
+
+        private static void UpdateProgress(object sender, ConvertProgressEventArgs e)
+        {
+            var processedAmount = (double)e.Processed.Ticks;
+            var total = (double)e.TotalDuration.Ticks;
+            var progress = processedAmount / total;
+            var progressString = progress.ToString("0%");
+            var progressPercent = "000%".Substring(0, 4 - progressString.Length) + progressString;
+
+
+            string loadedProgress = new string('#', (int)Math.Round(progress * 100 / 2.0));
+            string unloadedProgress = new string('-', 50).Substring(0, 50 - loadedProgress.Length);
+
+            string progressBar = $"{progressPercent} <{loadedProgress}{unloadedProgress}>";
+
+            Console.SetCursorPosition(Console.CursorLeft - progressBar.Length, Console.CursorTop);
+            Console.Write($"{progressBar}");
+        }
+
+        private static string GetInput(string prompt, string defaultAnswer)
 		{
 			Console.Write(prompt);
 			var input = Console.ReadLine();
@@ -385,9 +414,9 @@ namespace RedditScraper
 			switch (_downloadColor)
 			{
 				case 1:
-					return Console.ForegroundColor = ConsoleColor.White;
-				case 2:
 					return Console.ForegroundColor = ConsoleColor.Cyan;
+				case 2:
+					return Console.ForegroundColor = ConsoleColor.White;
 				default:
 					_downloadColor = 0;
 					return Console.ForegroundColor = ConsoleColor.Magenta;
