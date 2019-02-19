@@ -11,22 +11,23 @@ using System.Threading;
 
 namespace RedditScraper
 {
-	class Program
+    class Program
 	{
-		private static string _inputSubreddit;
+        #region Field Variables
+        private static string _inputSubreddit;
 		private static Subreddit _subreddit;
-		private static int _downloadColor;
         private static string _directory;
         private static int _fileIndex;
 		private static FromTime _time;
 		private static bool _magOrCy;
 		private static int _amount;
+		private static int _color;
+        #endregion
 
-
-		public static void Main()
+        public static void Main(string[] args)
 		{
             Intro();
-            GetUserInput();
+            GetUserInput(args);
             DownloadRedditPosts();
             DeleteBadFiles();
 			ConvertVideos();
@@ -53,14 +54,14 @@ namespace RedditScraper
                                                       | |              
    by: victor d. johnson                              |_|              
    this code is under MIT licence",
-							string.Empty,
-							@"Enter the name of a subreddit (without spaces) and specify an amount of",
-							@"of photos and a time frame. This program will download an image from each",
-							@"post found on the subreddit and place the image in a directory on your ",
-							@"computer. This will then try to clean up broken files and convert web ",
-							@"movies into video files that can be played locally.",
-							string.Empty
-						});
+				string.Empty,
+				@"Enter the name of a subreddit (without spaces) and specify an amount of",
+				@"of photos and a time frame. This program will download an image from each",
+				@"post found on the subreddit and place the image in a directory on your ",
+				@"computer. This will then try to clean up broken files and convert web ",
+				@"movies into video files that can be played locally.",
+				string.Empty
+			});
 
 			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
 			{
@@ -71,30 +72,62 @@ namespace RedditScraper
 			}
 		}
 
-		private static void GetUserInput()
+		private static void GetUserInput(string[] args)
 		{
-			Show(new[] { "Which subreddit would you like to scrape? [funny]" });
-			_inputSubreddit = GetInput("subreddit: ", "funny");
+            // Check for command line arguments passed
+            if (args.Length > 0)
+            {
+                for (int i = 0; i < args.Length; i++)
+                {
+                    if (args[i].Equals("-sr") && i + 1 < args.Length && !args[i+1].StartsWith("-"))
+                    {
+                        _inputSubreddit = args[i + 1];
+                    }
+                    if (args[i].Equals("-a") && i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                    {
+                        if (!int.TryParse(args[i + 1], out _amount)) _amount = 25;
+                    }
+                    if (args[i].Equals("-t") && i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                    {
+                        if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.All;
+                    }
+                }
+            }
 
-			Show(new[] { "How many posts would you like to try to download? [25]" });
-			if (!int.TryParse(GetInput("amount: ", "25"), out _amount)) _amount = 25;
+            // The Subreddit we are looking at
+            if (string.IsNullOrWhiteSpace(_inputSubreddit))
+            {
+			    Show(new[] { "Which subreddit would you like to scrape? [funny]" });
+			    _inputSubreddit = GetInput("subreddit: ", "funny");
+            }
 
-			Show(new[]
-			{
-				"Time Period? [All Time]",
-				"0 = All Time",
-				"1 = Past Year",
-				"2 = Past Month",
-				"3 = Past Week",
-				"4 = Past Day",
-				"5 = Past Hour",
-			});
-			if (Enum.TryParse(GetInput("from: ", "0"), out _time))
-			{
-				Console.SetCursorPosition(6, Console.CursorTop - 2);
-			}
-			Console.WriteLine(_time);
-			Console.WriteLine();
+            // The amount to download
+            if (_amount == default)
+            {
+			    Show(new[] { "How many posts would you like to try to download? [25]" });
+			    if (!int.TryParse(GetInput("amount: ", "25"), out _amount)) _amount = 25;
+            }
+
+            // The time line we are looking at
+            if (!args.Any(x => x.Equals("-t")))
+            {
+			    Show(new[]
+			    {
+				    "Time Period? [All Time]",
+				    "0 = All Time",
+				    "1 = Past Year",
+				    "2 = Past Month",
+				    "3 = Past Week",
+				    "4 = Past Day",
+				    "5 = Past Hour",
+			    });
+			    if (Enum.TryParse(GetInput("from: ", "0"), out _time))
+			    {
+				    Console.SetCursorPosition(6, Console.CursorTop - 2);
+			    }
+			    Console.WriteLine(_time);
+			    Console.WriteLine();
+            }
 		}
 
 		private static void DownloadRedditPosts()
@@ -102,11 +135,13 @@ namespace RedditScraper
 			try
 			{
 				_subreddit = new Reddit().GetSubreddit($"/r/{_inputSubreddit}");
-			} catch (WebException ex)
+            }
+            catch (WebException)
 			{
 				Show(new[] { "404: subreddit not found", string.Empty });
 			}
 
+            // If the subreddit wasn't found, try again
 			if (_subreddit == null)
 			{
 				Show(new[]
@@ -115,24 +150,27 @@ namespace RedditScraper
 					"Try again...",
 					string.Empty
 				});
-				GetUserInput();
+                _inputSubreddit = string.Empty;
+                _amount = 0;
+				GetUserInput(new string[0]);
 				DownloadRedditPosts();
 			}
 
 			Show(new[] { $"Looking on {_subreddit} for {_amount} posts...", string.Empty });
-			var foundPosts = _subreddit
-				.GetTop(_time)
-				.Take(_amount)
-				.Select(x => x.Url.ToString());
+            var foundPosts = _subreddit
+                .GetTop(_time)
+                .Take(_amount)
+                .Select(x => x.Url.ToString());
+
 			Show(new[] { $"Found {foundPosts.Count()} posts on {_subreddit}", string.Empty });
 
+            // Create and show a directory that matches the subreddit we are searching
 			_directory = $@"C:\reddit\{_inputSubreddit}\";
 			Show(new[] { $"Creating directory at \"{_directory}\"", string.Empty });
-
 			Directory.CreateDirectory(_directory);
 			System.Diagnostics.Process.Start(_directory);
 
-			Show(new[] { $"Downloading files from {_subreddit}" });
+			Show(new[] { $"Downloading files from {_subreddit}", string.Empty });
 			foreach(var foundPost in foundPosts)
 			{
 				DownloadImage(foundPost);
@@ -156,6 +194,8 @@ namespace RedditScraper
 			DownloadFile(new Uri(imageURL), path, fileName);
 		}
 
+        // Needed to overcome url changes which happen automatically when browsing
+        // but not when web crawling
 		private static void FixImageUrl(ref string imageUrl)
 		{
 			switch (imageUrl)
@@ -175,7 +215,7 @@ namespace RedditScraper
 			{
 				wc.QueryString.Add("fileName", fileName);
 				wc.DownloadFileCompleted += DownloadFileCompleted;
-				wc.DownloadProgressChanged += DownloadProgressChanged;
+				wc.DownloadProgressChanged += UpdateDownloadProgress;
 
 				// Locking the thread and making a sync download into
 				// a psuedo async one so we have access to the download events
@@ -186,39 +226,6 @@ namespace RedditScraper
 					Monitor.Wait(syncObject);
 				}
 			}
-		}
-
-		private static void DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
-		{
-			string loadedProgress = new string('#', (int) Math.Round(e.ProgressPercentage / 2.0));
-			string unloadedProgress = new string('-', 50).Substring(0, 50 - loadedProgress.Length);
-
-			string progressBar = $"<{loadedProgress}{unloadedProgress}>";
-
-			string progressPercent = "000".Substring(0, 3 - e.ProgressPercentage.ToString().Length) + e.ProgressPercentage;
-
-			string fileName = ((WebClient)sender).QueryString["fileName"];
-            Console.Write($"\r{fileName} - {progressPercent}% {progressBar}");
-		}
-
-		private static void DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
-		{
-            if (e.Error == null)
-            {
-                Console.WriteLine();
-            } 
-            else
-            {
-                string fileName = ((WebClient)sender).QueryString["fileName"];
-                Console.WriteLine($"{fileName} ERROR: {e.Error.Message}");
-
-            }
-            FlipColors();
-            lock (e.UserState)
-			{
-				Monitor.Pulse(e.UserState);
-			}
-		
 		}
 
         private static void DeleteBadFiles()
@@ -252,6 +259,7 @@ namespace RedditScraper
                     filesToDelete.Add(file);
                 }
             }
+
             if (!filesToDelete.Any()) return;
 
             Show(new[]
@@ -280,6 +288,7 @@ namespace RedditScraper
 				string.Empty,
 			});
 		}
+
 		private static void ConvertVideos()
 		{
 			var files = Directory.GetFiles(_directory).Where(x => x.Contains("webm"));
@@ -295,31 +304,30 @@ namespace RedditScraper
 				int gifCount = 0;
 				int mp4Count = 0;
 				int convertedVideoCount = 1;
+
 				var ffMpeg = new FFMpegConverter();
-                ffMpeg.ConvertProgress += UpdateProgress;
+                ffMpeg.ConvertProgress += UpdateConversionProgress;
+
+                // Sort files by name, using int values and not string ones, so '10' comes before '2'
 				files = files.OrderBy(x => int.Parse(Path.GetFileName(x.Split('-')[0])));
+
 				Show(new[] { "Converting videos... This may take a couple of minutes...", string.Empty });
 				foreach (var file in files)
 				{
-					
-					Console.ForegroundColor = FlipColors();
-					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: ");
-                    Console.ForegroundColor = FlipColors();
-					Console.Write(Path.GetFileName(file) + " " + new string(' ', 57));
-					Console.ForegroundColor = FlipColors();
-
 					var fileInfo = new FileInfo(file);
 					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
+					string newFileName = file.Replace(Format.webm, outputFormat);
 
-					var newFileName = file.Replace(Format.webm, outputFormat);
+					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: {Path.GetFileName(file)} {new string(' ', 57)}");
                     try
                     {
 					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
 
-                        Console.WriteLine();
                         Console.ForegroundColor = FlipColors();
-                        (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
+                        Console.WriteLine();
 
+                        // Increment one of these depending on the format we are converting the file to. Cool feature of C# 7.0+
+                        (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
                         fileInfo.Delete();
 					    convertedVideoCount++;
                     }
@@ -337,29 +345,14 @@ namespace RedditScraper
 					string.Empty
 				});
 
+                // Delete the ffmpeg binary file that was extracted as it's not needed anymore.
 				new FileInfo("ffmpeg.exe").Delete();
 				Console.WriteLine();
 			}
 		}
 
-        private static void UpdateProgress(object sender, ConvertProgressEventArgs e)
-        {
-            var processedAmount = (double)e.Processed.Ticks;
-            var total = (double)e.TotalDuration.Ticks;
-            var progress = processedAmount / total;
-            var progressString = progress.ToString("0%");
-            var progressPercent = "000%".Substring(0, 4 - progressString.Length) + progressString;
-
-
-            string loadedProgress = new string('#', (int)Math.Round(progress * 100 / 2.0));
-            string unloadedProgress = new string('-', 50).Substring(0, 50 - loadedProgress.Length);
-
-            string progressBar = $"{progressPercent} <{loadedProgress}{unloadedProgress}>";
-
-            Console.SetCursorPosition(Console.CursorLeft - progressBar.Length, Console.CursorTop);
-            Console.Write($"{progressBar}");
-        }
-
+        #region Console Helpers
+        // Ask user for input. If the answer wasn't given, return the default value.
         private static string GetInput(string prompt, string defaultAnswer)
 		{
 			Console.Write(prompt);
@@ -376,6 +369,7 @@ namespace RedditScraper
 			return input;
 		}
 
+        // Alternate colors for the console then return the color to white
 		private static void Show(string[] texts)
 		{
 			Console.ForegroundColor = _magOrCy 
@@ -390,6 +384,7 @@ namespace RedditScraper
 			Console.ForegroundColor = ConsoleColor.White;
 		}
 
+        // Prompt user for a boolean value. Not letting anything other than y/n/enter be entered.
 		public static bool Confirm(string[] prompt)
 		{
 			ConsoleKey res;
@@ -408,19 +403,72 @@ namespace RedditScraper
 			return (res == ConsoleKey.Y || res == ConsoleKey.Enter);
 		}
 
+        // Toggle between three colors.
 		public static ConsoleColor FlipColors()
 		{
-			_downloadColor++;
-			switch (_downloadColor)
+			_color++;
+			switch (_color % 3)
 			{
-				case 1:
-					return Console.ForegroundColor = ConsoleColor.Cyan;
-				case 2:
-					return Console.ForegroundColor = ConsoleColor.White;
-				default:
-					_downloadColor = 0;
-					return Console.ForegroundColor = ConsoleColor.Magenta;
+				case 1: return ConsoleColor.Cyan;
+				case 2: return ConsoleColor.Magenta;
+				default: return ConsoleColor.White;
 			}
 		}
-	}
+        #endregion
+
+        #region Event Handlers
+        // Write to console when a download progress event is triggered. Show filename and progress bar.
+        private static void UpdateDownloadProgress(object sender, DownloadProgressChangedEventArgs e)
+        {
+            int progress = e.ProgressPercentage;
+            string progressBar = MakeProgressBar(progress);
+
+            string fileName = ((WebClient)sender).QueryString["fileName"];
+            Console.Write($"\r{fileName} - {progressBar}");
+        }
+
+        // Display how far we are in the file conversion process.
+        private static void UpdateConversionProgress(object sender, ConvertProgressEventArgs e)
+        {
+            int progress = (int)Math.Round((double)e.Processed.Ticks / e.TotalDuration.Ticks * 100);
+            string progressBar = MakeProgressBar(progress);
+
+            if (Console.CursorLeft >= progressBar.Length)
+            {
+                Console.SetCursorPosition(Console.CursorLeft - progressBar.Length, Console.CursorTop);
+            }
+            Console.Write(progressBar);
+        }
+
+        // Take a number that's the percent downloaded and make a loading bar.
+        private static string MakeProgressBar(int progress)
+        {
+            string loadedProgress = new string('#', (int)Math.Round(progress / 2.0));
+            string unloadedProgress = new string('-', 50).Substring(0, 50 - loadedProgress.Length);
+            string progressPercent = "000%".Substring(0, 3 - progress.ToString().Length) + progress;
+
+            string progressBar = $"{progressPercent}% <{loadedProgress}{unloadedProgress}>";
+            return progressBar;
+        }
+
+        // Release the 'async' lock on the thread for the file download.
+        private static void DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
+        {
+            if (e.Error == null)
+            {
+                Console.WriteLine();
+            }
+            else
+            {
+                string fileName = ((WebClient)sender).QueryString["fileName"];
+                Console.WriteLine($"{fileName} ERROR: {e.Error.Message}");
+            }
+            Console.ForegroundColor = FlipColors();
+            lock (e.UserState)
+            {
+                Monitor.Pulse(e.UserState);
+            }
+        }
+        #endregion
+    }
 }
