@@ -79,15 +79,22 @@ namespace RedditScraper
             {
                 for (int i = 0; i < args.Length; i++)
                 {
-                    if (args[i].Equals("-sr") && i + 1 < args.Length && !args[i+1].StartsWith("-"))
+                    if (!(i + 1 < args.Length)) break;
+
+                    // Subreddit
+                    if (args[i].Equals("-sr"))
                     {
                         _inputSubreddit = args[i + 1];
                     }
-                    if (args[i].Equals("-a") && i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+
+                    // Amount
+                    if (args[i].Equals("-a"))
                     {
                         if (!int.TryParse(args[i + 1], out _amount)) _amount = 25;
                     }
-                    if (args[i].Equals("-t") && i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+
+                    // Time frame
+                    if (args[i].Equals("-t"))
                     {
                         if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.All;
                     }
@@ -156,13 +163,25 @@ namespace RedditScraper
 				DownloadRedditPosts();
 			}
 
-			Show(new[] { $"Looking on {_subreddit} for {_amount} posts...", string.Empty });
-            var foundPosts = _subreddit
-                .GetTop(_time)
-                .Take(_amount)
-                .Select(x => x.Url.ToString());
+            var caller = new RedditPostCaller(GetRedditPosts);
+            IAsyncResult result = caller.BeginInvoke(null, null);
 
-			Show(new[] { $"Found {foundPosts.Count()} posts on {_subreddit}", string.Empty });
+            Console.ForegroundColor = _magOrCy
+                ? ConsoleColor.Magenta
+                : ConsoleColor.Cyan;
+            _magOrCy = !_magOrCy;
+
+            Console.Write($"Looking on {_subreddit} for {_amount} posts...");
+            Console.ForegroundColor = ConsoleColor.White;
+            while (!result.IsCompleted)
+            {
+                Spinner.Turn();
+                Thread.Sleep(100);
+            }
+            var redditPosts = caller.EndInvoke(result);
+            Console.WriteLine("\n");
+
+            Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}", string.Empty });
 
             // Create and show a directory that matches the subreddit we are searching
 			_directory = $@"C:\reddit\{_inputSubreddit}\";
@@ -171,7 +190,7 @@ namespace RedditScraper
 			System.Diagnostics.Process.Start(_directory);
 
 			Show(new[] { $"Downloading files from {_subreddit}", string.Empty });
-			foreach(var foundPost in foundPosts)
+			foreach(var foundPost in redditPosts)
 			{
 				DownloadImage(foundPost);
 			}
@@ -184,6 +203,16 @@ namespace RedditScraper
 				string.Empty
 			});
 		}
+
+        private delegate IEnumerable<string> RedditPostCaller();
+        private static IEnumerable<string> GetRedditPosts()
+        {
+            return _subreddit
+                .GetTop(_time)
+                .Take(_amount)
+                .Select(x => x.Url.ToString())
+                .ToList();
+        }
 
 		private static void DownloadImage(string imageURL)
 		{
@@ -318,7 +347,7 @@ namespace RedditScraper
 					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
 					string newFileName = file.Replace(Format.webm, outputFormat);
 
-					Console.Write($"({convertedVideoCount} of {files.Count()}) Converting: {Path.GetFileName(file)} {new string(' ', 57)}");
+					Console.Write($"({convertedVideoCount} of {files.Count()}) {Path.GetFileName(file)} {new string(' ', 57)}");
                     try
                     {
 					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
@@ -414,6 +443,24 @@ namespace RedditScraper
 				default: return ConsoleColor.White;
 			}
 		}
+
+        public static class Spinner
+        {
+            static int counter = 0;
+
+            public static void Turn()
+            {
+                counter++;
+                switch (counter % 4)
+                {
+                    case 0: Console.Write("/"); break;
+                    case 1: Console.Write("-"); break;
+                    case 2: Console.Write("\\"); break;
+                    case 3: Console.Write("|"); break;
+                }
+                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+            }
+        }
         #endregion
 
         #region Event Handlers
@@ -433,10 +480,7 @@ namespace RedditScraper
             int progress = (int)Math.Round((double)e.Processed.Ticks / e.TotalDuration.Ticks * 100);
             string progressBar = MakeProgressBar(progress);
 
-            if (Console.CursorLeft >= progressBar.Length)
-            {
-                Console.SetCursorPosition(Console.CursorLeft - progressBar.Length, Console.CursorTop);
-            }
+            Console.SetCursorPosition(Console.CursorLeft - Math.Min(Console.CursorLeft, progressBar.Length), Console.CursorTop);
             Console.Write(progressBar);
         }
 
