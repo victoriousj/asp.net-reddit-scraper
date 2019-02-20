@@ -347,7 +347,10 @@ namespace RedditScraper
 					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
 					string newFileName = file.Replace(Format.webm, outputFormat);
 
-					Console.Write($"({convertedVideoCount} of {files.Count()}) {Path.GetFileName(file)} {new string(' ', 57)}");
+                    string fileName = Path.GetFileName(file);
+                    fileName = fileName.Length + 67 >= Console.WindowWidth ? $"{fileName.Substring(0, Math.Max(0, Console.WindowWidth - 75))}..." : fileName;
+
+                    Console.Write($"({convertedVideoCount} of {files.Count()}) {fileName} {new string(' ', 57)}");
                     try
                     {
 					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
