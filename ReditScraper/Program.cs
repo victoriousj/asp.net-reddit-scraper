@@ -34,11 +34,12 @@ namespace RedditScraper
 
 			Show(new[] {
 				"All steps complete...",
-				$"Go to \"{_directory}\" to see your files. Enjoy!"
+				$"Go to \"{_directory}\" to see your files. Enjoy!",
+				string.Empty
 			});
 			Console.Beep();
-			Console.ReadLine();
-		}
+            PromptForReset();
+        }
 
 		public static void Intro()
 		{
@@ -382,6 +383,24 @@ namespace RedditScraper
 				Console.WriteLine();
 			}
 		}
+
+        public static void PromptForReset()
+        {
+            if (!Confirm(new[] { "Download More? [Y/n]" }))
+            {
+                Show(new[] {
+                    string.Empty,
+                    "Closing..."
+                });
+                return;
+            }
+
+            _inputSubreddit = string.Empty;
+            _fileIndex = default;
+            _amount = default;
+
+            Main(new string[] { });
+        }
 
         #region Console Helpers
         // Ask user for input. If the answer wasn't given, return the default value.
