@@ -13,8 +13,8 @@ namespace RedditScraper
 {
     class Program
 	{
-        #region Field Variables
-        private static string _inputSubreddit;
+		#region Field Variables
+		private static string _inputSubreddit;
 		private static Subreddit _subreddit;
         private static string _directory;
         private static int _fileIndex;
@@ -35,7 +35,6 @@ namespace RedditScraper
 			Show(new[] {
 				"All steps complete...",
 				$"Go to \"{_directory}\" to see your files. Enjoy!",
-				string.Empty
 			});
 			Console.Beep();
             PromptForReset();
@@ -66,8 +65,7 @@ namespace RedditScraper
 
 			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
 			{
-				Show(new[] { "Internet connection not availible, dawg", string.Empty });
-				Show(new[] { "Try again, later."});
+				Show(new[] { "Internet connection not availible, dawg", "Try again, later." });
 				Console.ReadLine();
 				return;
 			}
@@ -97,7 +95,7 @@ namespace RedditScraper
                     // Time frame
                     if (args[i].Equals("-t"))
                     {
-                        if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.All;
+                        if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.Week;
                     }
                 }
             }
@@ -105,8 +103,8 @@ namespace RedditScraper
             // The Subreddit we are looking at
             if (string.IsNullOrWhiteSpace(_inputSubreddit))
             {
-			    Show(new[] { "Which subreddit would you like to scrape? [funny]" });
-			    _inputSubreddit = GetInput("subreddit: ", "funny");
+			    Show(new[] { "Which subreddit would you like to scrape? [EarthPorn]" });
+			    _inputSubreddit = GetInput("subreddit: ", "EarthPorn");
             }
 
             // The amount to download
@@ -121,7 +119,7 @@ namespace RedditScraper
             {
 			    Show(new[]
 			    {
-				    "Time Period? [All Time]",
+				    "Time Period? [Week]",
 				    "0 = All Time",
 				    "1 = Past Year",
 				    "2 = Past Month",
@@ -129,7 +127,7 @@ namespace RedditScraper
 				    "4 = Past Day",
 				    "5 = Past Hour",
 			    });
-			    if (Enum.TryParse(GetInput("from: ", "0"), out _time))
+			    if (Enum.TryParse(GetInput("from: ", "3"), out _time))
 			    {
 				    Console.SetCursorPosition(6, Console.CursorTop - 2);
 			    }
@@ -146,7 +144,7 @@ namespace RedditScraper
             }
             catch (WebException)
 			{
-				Show(new[] { "404: subreddit not found", string.Empty });
+				Show(new[] { "404: subreddit not found" });
 			}
 
             // If the subreddit wasn't found, try again
@@ -156,7 +154,6 @@ namespace RedditScraper
 				{
 					$"/r/{_inputSubreddit} doesn't appear to be a subreddit...",
 					"Try again...",
-					string.Empty
 				});
                 _inputSubreddit = string.Empty;
                 _amount = 0;
@@ -182,15 +179,15 @@ namespace RedditScraper
             var redditPosts = caller.EndInvoke(result);
             Console.WriteLine("\n");
 
-            Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}", string.Empty });
+            Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}" });
 
             // Create and show a directory that matches the subreddit we are searching
-			_directory = $@"C:\reddit\{_inputSubreddit}\";
-			Show(new[] { $"Creating directory at \"{_directory}\"", string.Empty });
+			_directory = $@"C:\reddit\{_inputSubreddit}\" + DateTime.Now.ToString("yyyy-MM-dd") + "\\";
+			Show(new[] { $"Creating directory at \"{_directory}\"" });
 			Directory.CreateDirectory(_directory);
 			System.Diagnostics.Process.Start(_directory);
 
-			Show(new[] { $"Downloading files from {_subreddit}", string.Empty });
+			Show(new[] { $"Downloading files from {_subreddit}" });
 			foreach(var foundPost in redditPosts)
 			{
 				DownloadImage(foundPost);
@@ -200,8 +197,7 @@ namespace RedditScraper
 			Show(new[] 
 			{
 				string.Empty,
-				$"Downloaded {files.Length} files from  {_subreddit}...",
-				string.Empty
+				$"Downloaded {files.Length} files from  {_subreddit}..."
 			});
 		}
 
@@ -298,7 +294,6 @@ namespace RedditScraper
                 $"{brokenFiles} were improperly downloaded...",
                 $"{removedFiles} are no longer availible...",
                 $"{badExtensionFiles} have an unknown file extension...",
-				string.Empty,
             });
 
             if (!Confirm(new[] { "Remove corrupted files? [Y/n]" })) return;
@@ -315,7 +310,6 @@ namespace RedditScraper
                 string.Empty,
 				$"{deletedFiles} files have been deleted overall...",
 				$"{files.Length - deletedFiles} remain from {_subreddit}...",
-				string.Empty,
 			});
 		}
 
@@ -341,7 +335,7 @@ namespace RedditScraper
                 // Sort files by name, using int values and not string ones, so '10' comes before '2'
 				files = files.OrderBy(x => int.Parse(Path.GetFileName(x.Split('-')[0])));
 
-				Show(new[] { "Converting videos... This may take a couple of minutes...", string.Empty });
+				Show(new[] { "Converting videos... This may take a couple of minutes..." });
 				foreach (var file in files)
 				{
 					var fileInfo = new FileInfo(file);
@@ -375,7 +369,6 @@ namespace RedditScraper
 					"All videos have been converted...",
 					$"{gifCount} gif's have been created...",
 					$"{mp4Count}.mp4's have been created...",
-					string.Empty
 				});
 
                 // Delete the ffmpeg binary file that was extracted as it's not needed anymore.
@@ -386,14 +379,7 @@ namespace RedditScraper
 
         public static void PromptForReset()
         {
-            if (!Confirm(new[] { "Download More? [Y/n]" }))
-            {
-                Show(new[] {
-                    string.Empty,
-                    "Closing..."
-                });
-                return;
-            }
+            if (!Confirm(new[] { "Download More? [Y/n]" })) return;
 
             _inputSubreddit = string.Empty;
             _fileIndex = default;
@@ -406,6 +392,7 @@ namespace RedditScraper
         // Ask user for input. If the answer wasn't given, return the default value.
         private static string GetInput(string prompt, string defaultAnswer)
 		{
+			Console.SetCursorPosition(0, Console.CursorTop - 1);
 			Console.Write(prompt);
 			var input = Console.ReadLine();
 			if (string.IsNullOrWhiteSpace(input))
@@ -432,6 +419,7 @@ namespace RedditScraper
 			{
 				Console.WriteLine(text);
 			}
+			Console.WriteLine();
 			Console.ForegroundColor = ConsoleColor.White;
 		}
 
