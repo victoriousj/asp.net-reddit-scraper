@@ -7,17 +7,18 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 
 namespace RedditScraper
 {
-    class Program
+	class Program
 	{
 		#region Field Variables
 		private static string _inputSubreddit;
 		private static Subreddit _subreddit;
         private static string _directory;
-        private static int _fileIndex;
+		private static int _fileIndex;
 		private static FromTime _time;
 		private static bool _magOrCy;
 		private static int _amount;
@@ -159,6 +160,7 @@ namespace RedditScraper
                 _amount = 0;
 				GetUserInput(new string[0]);
 				DownloadRedditPosts();
+				return;
 			}
 
             var caller = new RedditPostCaller(GetRedditPosts);
@@ -182,15 +184,15 @@ namespace RedditScraper
             Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}" });
 
             // Create and show a directory that matches the subreddit we are searching
-			_directory = $@"C:\reddit\{_inputSubreddit}\" + DateTime.Now.ToString("yyyy-MM-dd") + "\\";
+			_directory = $@"C:\reddit\{_inputSubreddit}\\";
 			Show(new[] { $"Creating directory at \"{_directory}\"" });
 			Directory.CreateDirectory(_directory);
 			System.Diagnostics.Process.Start(_directory);
 
 			Show(new[] { $"Downloading files from {_subreddit}" });
-			foreach(var foundPost in redditPosts)
+			foreach(var post in redditPosts)
 			{
-				DownloadImage(foundPost);
+				DownloadImage(post);
 			}
 
 			var files = Directory.GetFiles(_directory);
@@ -201,37 +203,81 @@ namespace RedditScraper
 			});
 		}
 
-        private delegate IEnumerable<string> RedditPostCaller();
-        private static IEnumerable<string> GetRedditPosts()
+        private delegate Dictionary<string, string> RedditPostCaller();
+        private static Dictionary<string, string> GetRedditPosts()
         {
-            return _subreddit
-                .GetTop(_time)
-                .Take(_amount)
-                .Select(x => x.Url.ToString())
-                .ToList();
+			return _subreddit
+				.GetTop(_time)
+				.Take(_amount)
+				.Select(x => new { url = x.Url.ToString(), title = x.Title })
+				.ToDictionary(x => x.url, x => x.title);
         }
 
-		private static void DownloadImage(string imageURL)
+		private static void DownloadImage(KeyValuePair<string, string> post)
 		{
-			FixImageUrl(ref imageURL);
-			string fileName = $"{++_fileIndex}-{imageURL.Split('/').Last()}";
+			string url = post.Key;
+			string fileName = post.Value;
+			
+			FixImageUrl(ref url);
+			FixFileName(ref fileName, url);
+
 			string path = _directory + fileName;
 
-			DownloadFile(new Uri(imageURL), path, fileName);
+			DownloadFile(new Uri(url), path, fileName);
 		}
 
-        // Needed to overcome url changes which happen automatically when browsing
-        // but not when web crawling
+		private static void FixFileName(ref string fileName, string url)
+		{
+			fileName = fileName.Length > 30 ? fileName.Substring(0, 30) : fileName;
+			fileName = DateTime.Now.ToString("yyyy-MM-dd")
+				+ " " + ++_fileIndex + "-" + fileName.Replace(".", "").Trim()
+				+ "." + url.Split('.').Last();
+
+			foreach(char c in Path.GetInvalidFileNameChars())
+			{
+				fileName = fileName.Replace(c, default);
+			}
+		}
+
+		// Needed to overcome url changes which happen automatically when browsing
+		// but not when web crawling
 		private static void FixImageUrl(ref string imageUrl)
 		{
 			switch (imageUrl)
 			{
 				case string url when url.Contains("gfycat.com"):
-					imageUrl =  imageUrl.Replace("gfycat.com", "giant.gfycat.com") + ".webm";
+					Console.WriteLine("Looking for video file url...");
+					Console.SetCursorPosition(0, Console.CursorTop - 1);
+					GetGifyCatUrl(ref imageUrl);
 					break;
 				case string url when url.Contains(".gifv"):
 					imageUrl = imageUrl.Replace(".gifv", ".gif");
 					break;
+			}
+		}
+
+		public static void GetGifyCatUrl(ref string url)
+		{
+			var request = (HttpWebRequest)WebRequest.Create($@"https://api.gfycat.com/v1/gfycats/" + url.Split('/').Last());
+			request.ContentType = "application/json; charset=utf-8";
+			request.Timeout = 10000;
+			try
+			{
+				using (WebResponse response  = (HttpWebResponse)request.GetResponse())
+				using (Stream responseStream = response.GetResponseStream())
+				{
+					var reader = new StreamReader(responseStream, Encoding.UTF8);
+					var results = reader.ReadToEnd();
+
+					int pos1 = results.IndexOf("\"mp4Url\":") + 9;
+					int pos2 = results.IndexOf(",\"gifUrl\":");
+
+					url = results.Substring(pos1, pos2 - pos1);
+					url = url.Replace("\"", "").Replace("\\", "");
+				}
+			} catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
 			}
 		}
 
@@ -266,21 +312,18 @@ namespace RedditScraper
 			foreach (var file in files)
 			{
 				var fileInfo = new FileInfo(file);
+				var length = file.Length;
+				var exten = fileInfo.Extension;
+
                 if (fileInfo == null) return;
-				if (fileInfo.Length == 0) brokenFiles++;
-				if (fileInfo.Length == 503) removedFiles++;
-				if (string.IsNullOrWhiteSpace(fileInfo.Extension) || fileInfo.Extension.Length > 6)
+				if (length == 0) brokenFiles++;
+				if (length == 503) removedFiles++;
+				if (string.IsNullOrWhiteSpace(exten) || exten.Length > 6)
 				{
 					badExtensionFiles++;
 				}
 
-				if 
-				(
-					fileInfo.Length == 0 || 
-					fileInfo.Length == 503 || 
-					fileInfo.Extension.Length > 6 ||
-					string.IsNullOrWhiteSpace(fileInfo.Extension)
-				)
+				if (length == 0 || length == 503 || exten.Length > 6 ||string.IsNullOrWhiteSpace(exten))
                 {
                     filesToDelete.Add(file);
                 }
@@ -381,8 +424,8 @@ namespace RedditScraper
         {
             if (!Confirm(new[] { "Download More? [Y/n]" })) return;
 
-            _inputSubreddit = string.Empty;
-            _fileIndex = default;
+			_inputSubreddit = default;
+			_fileIndex = default;
             _amount = default;
 
             Main(new string[] { });
