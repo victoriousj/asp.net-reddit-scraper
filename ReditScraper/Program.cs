@@ -1,5 +1,4 @@
-﻿using NReco.VideoConverter;
-using RedditSharp;
+﻿using RedditSharp;
 using RedditSharp.Things;
 using System;
 using System.Collections.Generic;
@@ -15,6 +14,7 @@ namespace RedditScraper
 	class Program
 	{
 		#region Field Variables
+		private delegate List<(string, string)> RedditPostCaller();
 		private static string _inputSubreddit;
 		private static Subreddit _subreddit;
         private static string _directory;
@@ -28,16 +28,19 @@ namespace RedditScraper
         public static void Main(string[] args)
 		{
             Intro();
+
             GetUserInput(args);
+
             DownloadRedditPosts();
+
             DeleteBadFiles();
-			ConvertVideos();
 
 			Show(new[] {
 				"All steps complete...",
 				$"Go to \"{_directory}\" to see your files. Enjoy!",
 			});
 			Console.Beep();
+
             PromptForReset();
         }
 
@@ -59,8 +62,7 @@ namespace RedditScraper
 				@"Enter the name of a subreddit (without spaces) and specify an amount of",
 				@"of photos and a time frame. This program will download an image from each",
 				@"post found on the subreddit and place the image in a directory on your ",
-				@"computer. This will then try to clean up broken files and convert web ",
-				@"movies into video files that can be played locally.",
+				@"computer.",
 				string.Empty
 			});
 
@@ -184,7 +186,7 @@ namespace RedditScraper
             Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}" });
 
             // Create and show a directory that matches the subreddit we are searching
-			_directory = $@"C:\reddit\{_inputSubreddit}\\";
+			_directory = $@"C:\reddit\{_inputSubreddit}\";
 			Show(new[] { $"Creating directory at \"{_directory}\"" });
 			Directory.CreateDirectory(_directory);
 			System.Diagnostics.Process.Start(_directory);
@@ -195,47 +197,53 @@ namespace RedditScraper
 				DownloadImage(post);
 			}
 
-			var files = Directory.GetFiles(_directory);
 			Show(new[] 
 			{
 				string.Empty,
-				$"Downloaded {files.Length} files from  {_subreddit}..."
+				$"Downloaded {_fileIndex} files from  {_subreddit}..."
 			});
 		}
 
-        private delegate Dictionary<string, string> RedditPostCaller();
-        private static Dictionary<string, string> GetRedditPosts()
+        private static List<(string, string)> GetRedditPosts()
         {
 			return _subreddit
 				.GetTop(_time)
 				.Take(_amount)
-				.Select(x => new { url = x.Url.ToString(), title = x.Title })
-				.ToDictionary(x => x.url, x => x.title);
+				.Select(x =>  
+					(url: x.Url.ToString(), 
+					title: x.Title))
+				.ToList();
         }
 
-		private static void DownloadImage(KeyValuePair<string, string> post)
+		private static void DownloadImage((string url, string title) post)
 		{
-			string url = post.Key;
-			string fileName = post.Value;
+			var (url, fileName) = post;
 			
 			FixImageUrl(ref url);
 			FixFileName(ref fileName, url);
 
 			string path = _directory + fileName;
-
 			DownloadFile(new Uri(url), path, fileName);
 		}
 
 		private static void FixFileName(ref string fileName, string url)
 		{
-			fileName = fileName.Length > 30 ? fileName.Substring(0, 30) : fileName;
+			string fileExtension = url.Split('.').Last();
+			if (fileExtension.Length != 3 && fileExtension.IndexOf("/") > 0)
+			{ 
+				fileExtension = fileExtension.Substring(0, fileExtension.IndexOf("/"));
+			}
+			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
+			fileName = WebUtility.HtmlEncode(fileName);
+
+			// e.g., "2020-01-15 10-File Name.jpg
 			fileName = DateTime.Now.ToString("yyyy-MM-dd")
 				+ " " + ++_fileIndex + "-" + fileName.Replace(".", "").Trim()
-				+ "." + url.Split('.').Last();
+				+ "." + fileExtension;
 
 			foreach(char c in Path.GetInvalidFileNameChars())
 			{
-				fileName = fileName.Replace(c, default);
+				fileName = fileName.Replace(c.ToString(), "");
 			}
 		}
 
@@ -256,6 +264,7 @@ namespace RedditScraper
 			}
 		}
 
+		// Use the gfycat API to find the URL of the associated file
 		public static void GetGifyCatUrl(ref string url)
 		{
 			var request = (HttpWebRequest)WebRequest.Create($@"https://api.gfycat.com/v1/gfycats/" + url.Split('/').Last());
@@ -269,23 +278,28 @@ namespace RedditScraper
 					var reader = new StreamReader(responseStream, Encoding.UTF8);
 					var results = reader.ReadToEnd();
 
+					// very hacky
 					int pos1 = results.IndexOf("\"mp4Url\":") + 9;
 					int pos2 = results.IndexOf(",\"gifUrl\":");
 
 					url = results.Substring(pos1, pos2 - pos1);
 					url = url.Replace("\"", "").Replace("\\", "");
 				}
-			} catch (Exception ex)
-			{
-				Console.WriteLine(ex.Message);
-			}
+			} catch (Exception) { }
 		}
 
 		public static void DownloadFile(Uri uri, string destination, string fileName)
 		{
+			string abbrFileName = fileName =
+				fileName.Length > 40
+					? fileName.Substring(0, 37) + "..."
+					: fileName;
+
 			using (var wc = new WebClient())
 			{
-				wc.QueryString.Add("fileName", fileName);
+				var now = DateTime.Now.ToLongTimeString();
+				wc.QueryString.Add("fileName", abbrFileName);
+				wc.QueryString.Add("time", now.Substring(0, now.Length - 3));
 				wc.DownloadFileCompleted += DownloadFileCompleted;
 				wc.DownloadProgressChanged += UpdateDownloadProgress;
 
@@ -312,18 +326,18 @@ namespace RedditScraper
 			foreach (var file in files)
 			{
 				var fileInfo = new FileInfo(file);
-				var length = file.Length;
+				var length = fileInfo.Length;
 				var exten = fileInfo.Extension;
 
                 if (fileInfo == null) return;
 				if (length == 0) brokenFiles++;
 				if (length == 503) removedFiles++;
-				if (string.IsNullOrWhiteSpace(exten) || exten.Length > 6)
+				if (string.IsNullOrWhiteSpace(exten) || exten.Length > 6 || exten.Contains("com"))
 				{
 					badExtensionFiles++;
 				}
 
-				if (length == 0 || length == 503 || exten.Length > 6 ||string.IsNullOrWhiteSpace(exten))
+				if (length == 0 || length == 503 || exten.Length > 6 ||string.IsNullOrWhiteSpace(exten) ||exten.Contains("com"))
                 {
                     filesToDelete.Add(file);
                 }
@@ -354,70 +368,6 @@ namespace RedditScraper
 				$"{deletedFiles} files have been deleted overall...",
 				$"{files.Length - deletedFiles} remain from {_subreddit}...",
 			});
-		}
-
-		private static void ConvertVideos()
-		{
-			var files = Directory.GetFiles(_directory).Where(x => x.Contains("webm"));
-			if (files.Any())
-			{
-				if (!Confirm(new[]
-				{
-					"It appears there were some .webm files downloaded. These can be hard",
-					"to play. Would you like to convert these videos? Short videos will be",
-					"converted to .gifs and longer ones will be .mp4 [Y/n]",
-				})) return;
-
-				int gifCount = 0;
-				int mp4Count = 0;
-				int convertedVideoCount = 1;
-
-				var ffMpeg = new FFMpegConverter();
-                ffMpeg.ConvertProgress += UpdateConversionProgress;
-
-                // Sort files by name, using int values and not string ones, so '10' comes before '2'
-				files = files.OrderBy(x => int.Parse(Path.GetFileName(x.Split('-')[0])));
-
-				Show(new[] { "Converting videos... This may take a couple of minutes..." });
-				foreach (var file in files)
-				{
-					var fileInfo = new FileInfo(file);
-					string outputFormat = fileInfo.Length < 2560000 ? Format.gif : Format.mp4;
-					string newFileName = file.Replace(Format.webm, outputFormat);
-
-                    string fileName = Path.GetFileName(file);
-                    fileName = fileName.Length + 67 >= Console.WindowWidth ? $"{fileName.Substring(0, Math.Max(0, Console.WindowWidth - 75))}..." : fileName;
-
-                    Console.Write($"({convertedVideoCount} of {files.Count()}) {fileName} {new string(' ', 57)}");
-                    try
-                    {
-					    ffMpeg.ConvertMedia(file, newFileName, outputFormat);
-
-                        Console.ForegroundColor = FlipColors();
-                        Console.WriteLine();
-
-                        // Increment one of these depending on the format we are converting the file to. Cool feature of C# 7.0+
-                        (outputFormat == Format.gif ? ref gifCount : ref mp4Count) += 1;
-                        fileInfo.Delete();
-					    convertedVideoCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Write(ex.Message);
-                    }
-				}
-				Show(new[]
-				{
-					string.Empty,
-					"All videos have been converted...",
-					$"{gifCount} gif's have been created...",
-					$"{mp4Count}.mp4's have been created...",
-				});
-
-                // Delete the ffmpeg binary file that was extracted as it's not needed anymore.
-				new FileInfo("ffmpeg.exe").Delete();
-				Console.WriteLine();
-			}
 		}
 
         public static void PromptForReset()
@@ -523,19 +473,11 @@ namespace RedditScraper
             int progress = e.ProgressPercentage;
             string progressBar = MakeProgressBar(progress);
 
+			string time = ((WebClient)sender).QueryString["time"];
             string fileName = ((WebClient)sender).QueryString["fileName"];
-            Console.Write($"\r{fileName} - {progressBar}");
-        }
+            Console.Write($"\r({time}) {fileName} {new string(' ', (40 - fileName.Length))} {progressBar}");
 
-        // Display how far we are in the file conversion process.
-        private static void UpdateConversionProgress(object sender, ConvertProgressEventArgs e)
-        {
-            int progress = (int)Math.Round((double)e.Processed.Ticks / e.TotalDuration.Ticks * 100);
-            string progressBar = MakeProgressBar(progress);
-
-            Console.SetCursorPosition(Console.CursorLeft - Math.Min(Console.CursorLeft, progressBar.Length), Console.CursorTop);
-            Console.Write(progressBar);
-        }
+		}
 
         // Take a number that's the percent downloaded and make a loading bar.
         private static string MakeProgressBar(int progress)
