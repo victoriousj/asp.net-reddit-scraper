@@ -220,6 +220,8 @@ namespace RedditScraper
 			FixImageUrl(ref url);
 			FixFileName(ref fileName, url);
 
+			if (string.IsNullOrWhiteSpace(url)) return;
+
 			string path = _directory + fileName;
 			DownloadFile(new Uri(url), path, fileName);
 		}
