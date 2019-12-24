@@ -26,7 +26,7 @@ namespace RedditScraper
 		private static int _color;
         #endregion
 
-        public static void Main(string[] args)
+        private static void Main(string[] args)
 		{
             Intro();
 
@@ -40,12 +40,11 @@ namespace RedditScraper
 				"All steps complete...",
 				$"Go to \"{_directory}\" to see your files. Enjoy!",
 			});
-			Console.Beep();
 
             PromptForReset();
         }
 
-		public static void Intro()
+		private static void Intro()
 		{
 			Console.Title = "Reddit Scraper";
 			Show(new[]
@@ -193,16 +192,14 @@ namespace RedditScraper
 			System.Diagnostics.Process.Start(_directory);
 
 			Show(new[] { $"Downloading files from {_subreddit}" });
+
 			foreach(var post in redditPosts)
 			{
 				DownloadImage(post);
 			}
 
-			Show(new[] 
-			{
-				string.Empty,
-				$"Downloaded {_fileIndex} files from  {_subreddit}..."
-			});
+			Console.Beep();
+			Show(new[] {"",$"Downloaded {_fileIndex} files from  {_subreddit}..."});
 		}
 
         private static List<(string, string)> GetRedditPosts()
@@ -235,11 +232,11 @@ namespace RedditScraper
 				fileExtension = fileExtension.Substring(0, fileExtension.IndexOf("/"));
 			}
 			//Limit file names to 225, replace HTML escape characters, remove excess white space, and remove emojis
-			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 			fileName = WebUtility.HtmlEncode(fileName);
-			fileName = fileName.Replace("&#39;", "'").Replace("&#39;", "&").Replace("&quot;","\"");;
-			fileName = Regex.Replace(fileName, @"&#[0-9]*;", "").Replace("  ", " ");
+			fileName = Regex.Replace(fileName, @"&#[0-9]{5,};", "");
+			fileName = WebUtility.HtmlDecode(fileName);
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
+			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 
 			// e.g., "2020-01-15 10-File Name.jpg
 			fileName = DateTime.Now.ToString("yyyy-MM-dd")
@@ -260,7 +257,7 @@ namespace RedditScraper
 			{
 				case string url when url.Contains("gfycat.com"):
 					Console.WriteLine("Looking for video file url...");
-					Console.SetCursorPosition(0, Console.CursorTop - 1);
+					ReturnPrompt();
 					GetGifyCatUrl(ref imageUrl);
 					break;
 				case string url when url.Contains(".gifv"):
@@ -270,7 +267,7 @@ namespace RedditScraper
 		}
 
 		// Use the gfycat API to find the URL of the associated file
-		public static void GetGifyCatUrl(ref string url)
+		private static void GetGifyCatUrl(ref string url)
 		{
 			var request = (HttpWebRequest)WebRequest.Create($@"https://api.gfycat.com/v1/gfycats/" + url.Split('/').Last());
 			request.ContentType = "application/json; charset=utf-8";
@@ -293,7 +290,7 @@ namespace RedditScraper
 			} catch (Exception) { }
 		}
 
-		public static void DownloadFile(Uri uri, string destination, string fileName)
+		private static void DownloadFile(Uri uri, string destination, string fileName)
 		{
 			string abbrFileName = fileName =
 				fileName.Length >= 45
@@ -375,7 +372,7 @@ namespace RedditScraper
 			});
 		}
 
-        public static void PromptForReset()
+        private static void PromptForReset()
         {
             if (!Confirm(new[] { "Download More? [Y/n]" })) return;
 
@@ -390,7 +387,7 @@ namespace RedditScraper
         // Ask user for input. If the answer wasn't given, return the default value.
         private static string GetInput(string prompt, string defaultAnswer)
 		{
-			Console.SetCursorPosition(0, Console.CursorTop - 1);
+			ReturnPrompt();
 			Console.Write(prompt);
 			var input = Console.ReadLine();
 			if (string.IsNullOrWhiteSpace(input))
@@ -422,12 +419,13 @@ namespace RedditScraper
 		}
 
         // Prompt user for a boolean value. Not letting anything other than y/n/enter be entered.
-		public static bool Confirm(string[] prompt)
+		private static bool Confirm(string[] prompt)
 		{
 			ConsoleKey res;
 			do
 			{
 				Show(prompt);
+				ReturnPrompt();
 				res = Console.ReadKey(false).Key;
 				if (res != ConsoleKey.Enter)
 				{
@@ -441,7 +439,7 @@ namespace RedditScraper
 		}
 
         // Toggle between three colors.
-		public static ConsoleColor FlipColors()
+		private static ConsoleColor FlipColors()
 		{
 			_color++;
 			switch (_color % 3)
@@ -452,7 +450,9 @@ namespace RedditScraper
 			}
 		}
 
-        public static class Spinner
+		private static void ReturnPrompt() => Console.SetCursorPosition(0, Console.CursorTop - 1);
+
+		public class Spinner
         {
             static int counter = 0;
 
