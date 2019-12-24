@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace RedditScraper
@@ -233,8 +234,12 @@ namespace RedditScraper
 			{ 
 				fileExtension = fileExtension.Substring(0, fileExtension.IndexOf("/"));
 			}
+			//Limit file names to 225, replace HTML escape characters, remove excess white space, and remove emojis
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 			fileName = WebUtility.HtmlEncode(fileName);
+			fileName = fileName.Replace("&#39;", "'").Replace("&#39;", "&").Replace("&quot;","\"");;
+			fileName = Regex.Replace(fileName, @"&#[0-9]*;", "").Replace("  ", " ");
+			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 
 			// e.g., "2020-01-15 10-File Name.jpg
 			fileName = DateTime.Now.ToString("yyyy-MM-dd")
@@ -291,8 +296,8 @@ namespace RedditScraper
 		public static void DownloadFile(Uri uri, string destination, string fileName)
 		{
 			string abbrFileName = fileName =
-				fileName.Length > 40
-					? fileName.Substring(0, 37) + "..."
+				fileName.Length >= 45
+					? fileName.Substring(0, 42) + "..."
 					: fileName;
 
 			using (var wc = new WebClient())
@@ -475,7 +480,7 @@ namespace RedditScraper
 
 			string time = ((WebClient)sender).QueryString["time"];
             string fileName = ((WebClient)sender).QueryString["fileName"];
-            Console.Write($"\r({time}) {fileName} {new string(' ', (40 - fileName.Length))} {progressBar}");
+            Console.Write($"\r({time}) {fileName} {new string(' ', (45 - fileName.Length))} {progressBar}");
 
 		}
 
