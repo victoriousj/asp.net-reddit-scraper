@@ -229,14 +229,15 @@ namespace RedditScraper
 		private static void FixFileName(ref string fileName, string url)
 		{
 			string fileExtension = url.Split('.').Last();
-			if (fileExtension.Length != 3 && fileExtension.IndexOf("/") > 0)
+			if (fileExtension.Length > 3)
 			{ 
-				fileExtension = fileExtension.Substring(0, fileExtension.IndexOf("/"));
+				fileExtension = fileExtension.Substring(0, Math.Min(fileExtension.Length, 3));
 			}
 			//Limit file names to 225, replace HTML escape characters, remove excess white space, and remove emojis
 			fileName = WebUtility.HtmlEncode(fileName);
 			fileName = Regex.Replace(fileName, @"&#[0-9]{5,};", "");
 			fileName = WebUtility.HtmlDecode(fileName);
+			fileName = fileName.Replace("&amp;", "&");
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 
