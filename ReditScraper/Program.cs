@@ -237,7 +237,7 @@ namespace RedditScraper
 			fileName = WebUtility.HtmlEncode(fileName);
 			fileName = Regex.Replace(fileName, @"&#[0-9]{5,};", "");
 			fileName = WebUtility.HtmlDecode(fileName);
-			fileName = fileName.Replace("&amp;", "&");
+			fileName = fileName.Replace("&amp;", "&").Replace("&lt;3", "♡").Replace("&gt;","");
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 
