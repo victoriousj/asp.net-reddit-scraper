@@ -16,10 +16,9 @@ namespace RedditScraper
 	{
 		#region Field Variables
 		private delegate List<(string, string)> RedditPostCaller();
-		private static string _inputSubreddit;
+		private static List<string> _subreddits;
 		private static Subreddit _subreddit;
         private static string _directory;
-		private static int _fileIndex;
 		private static FromTime _time;
 		private static bool _magOrCy;
 		private static int _amount;
@@ -28,20 +27,13 @@ namespace RedditScraper
 
         private static void Main(string[] args)
 		{
-            Intro();
+			Intro();
 
-            GetUserInput(args);
+			GetInput(args);
 
             DownloadRedditPosts();
 
             DeleteBadFiles();
-
-			Show(new[] {
-				"All steps complete...",
-				$"Go to \"{_directory}\" to see your files. Enjoy!",
-			});
-
-            PromptForReset();
         }
 
 		private static void Intro()
@@ -58,151 +50,66 @@ namespace RedditScraper
                                                       | |              
    by: victor d. johnson                              |_|              
    this code is under MIT licence",
-				string.Empty,
-				@"Enter the name of a subreddit (without spaces) and specify an amount of",
-				@"of photos and a time frame. This program will download an image from each",
-				@"post found on the subreddit and place the image in a directory on your ",
-				@"computer.",
 				string.Empty
 			});
-
-			if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
-			{
-				Show(new[] { "Internet connection not availible, dawg", "Try again, later." });
-				Console.ReadLine();
-				return;
-			}
 		}
 
-		private static void GetUserInput(string[] args)
+		private static void GetInput(string[] args)
 		{
-            // Check for command line arguments passed
-            if (args.Length > 0)
+            for (int i = 0; i < args.Length; i++)
             {
-                for (int i = 0; i < args.Length; i++)
+                if (!(i + 1 < args.Length)) break;
+
+                if (args[i].Equals("-sr"))
                 {
-                    if (!(i + 1 < args.Length)) break;
-
-                    // Subreddit
-                    if (args[i].Equals("-sr"))
-                    {
-                        _inputSubreddit = args[i + 1];
-                    }
-
-                    // Amount
-                    if (args[i].Equals("-a"))
-                    {
-                        if (!int.TryParse(args[i + 1], out _amount)) _amount = 25;
-                    }
-
-                    // Time frame
-                    if (args[i].Equals("-t"))
-                    {
-                        if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.Week;
-                    }
+                    _subreddits = args[i + 1].Split(',').ToList();
                 }
-            }
 
-            // The Subreddit we are looking at
-            if (string.IsNullOrWhiteSpace(_inputSubreddit))
-            {
-			    Show(new[] { "Which subreddit would you like to scrape? [EarthPorn]" });
-			    _inputSubreddit = GetInput("subreddit: ", "EarthPorn");
-            }
-
-            // The amount to download
-            if (_amount == default)
-            {
-			    Show(new[] { "How many posts would you like to try to download? [25]" });
-			    if (!int.TryParse(GetInput("amount: ", "25"), out _amount)) _amount = 25;
-            }
-
-            // The time line we are looking at
-            if (!args.Any(x => x.Equals("-t")))
-            {
-			    Show(new[]
-			    {
-				    "Time Period? [Week]",
-				    "0 = All Time",
-				    "1 = Past Year",
-				    "2 = Past Month",
-				    "3 = Past Week",
-				    "4 = Past Day",
-				    "5 = Past Hour",
-			    });
-			    if (Enum.TryParse(GetInput("from: ", "3"), out _time))
-			    {
-				    Console.SetCursorPosition(6, Console.CursorTop - 2);
-			    }
-			    Console.WriteLine(_time);
-			    Console.WriteLine();
-            }
+                if (args[i].Equals("-t"))
+                {
+                    if (!Enum.TryParse(args[i+1], out _time)) _time = FromTime.Week;
+                }
+			}
 		}
 
 		private static void DownloadRedditPosts()
 		{
-			try
+			foreach (var sr in _subreddits)
 			{
-				_subreddit = new Reddit().GetSubreddit($"/r/{_inputSubreddit}");
-            }
-            catch (WebException)
-			{
-				Show(new[] { "404: subreddit not found" });
-			}
+				var srInfo = sr.Split('-');
+				string subreddit = srInfo.First();
+				_amount = int.Parse(srInfo.Last());
 
-            // If the subreddit wasn't found, try again
-			if (_subreddit == null)
-			{
-				Show(new[]
+				_subreddit = new Reddit().GetSubreddit($"/r/{subreddit}") ?? throw new WebException();
+
+				var caller = new RedditPostCaller(GetRedditPosts);
+				IAsyncResult result = caller.BeginInvoke(null, null);
+
+				Console.ForegroundColor = FlipColors();
+
+				Console.Write($"Looking on {_subreddit} for {_amount} posts...");
+				while (!result.IsCompleted)
 				{
-					$"/r/{_inputSubreddit} doesn't appear to be a subreddit...",
-					"Try again...",
-				});
-                _inputSubreddit = string.Empty;
-                _amount = 0;
-				GetUserInput(new string[0]);
-				DownloadRedditPosts();
-				return;
+					Spinner.Turn();
+					Thread.Sleep(200);
+				}
+				var redditPosts = caller.EndInvoke(result);
+				Console.WriteLine("\n");
+
+				_directory = $@"C:\reddit\reddit\{subreddit}\";
+				Directory.CreateDirectory(_directory);
+
+				Show(new[] { $"Downloading files from {_subreddit}" });
+
+				foreach(var post in redditPosts)
+				{
+					DownloadImage(post);
+				}
+				Console.WriteLine();
 			}
-
-            var caller = new RedditPostCaller(GetRedditPosts);
-            IAsyncResult result = caller.BeginInvoke(null, null);
-
-            Console.ForegroundColor = _magOrCy
-                ? ConsoleColor.Magenta
-                : ConsoleColor.Cyan;
-            _magOrCy = !_magOrCy;
-
-            Console.Write($"Looking on {_subreddit} for {_amount} posts...");
-            Console.ForegroundColor = ConsoleColor.White;
-            while (!result.IsCompleted)
-            {
-                Spinner.Turn();
-                Thread.Sleep(100);
-            }
-            var redditPosts = caller.EndInvoke(result);
-            Console.WriteLine("\n");
-
-            Show(new[] { $"Found {redditPosts.Count()} posts on {_subreddit}" });
-
-            // Create and show a directory that matches the subreddit we are searching
-			_directory = $@"C:\reddit\{_inputSubreddit}\";
-			Show(new[] { $"Creating directory at \"{_directory}\"" });
-			Directory.CreateDirectory(_directory);
-			System.Diagnostics.Process.Start(_directory);
-
-			Show(new[] { $"Downloading files from {_subreddit}" });
-
-			foreach(var post in redditPosts)
-			{
-				DownloadImage(post);
-			}
-
-			Console.Beep();
-			Show(new[] {"",$"Downloaded {_fileIndex} files from  {_subreddit}..."});
 		}
 
-        private static List<(string, string)> GetRedditPosts()
+		private static List<(string, string)> GetRedditPosts()
         {
 			return _subreddit
 				.GetTop(_time)
@@ -233,17 +140,14 @@ namespace RedditScraper
 			{ 
 				fileExtension = fileExtension.Substring(0, Math.Min(fileExtension.Length, 3));
 			}
-			//Limit file names to 225, replace HTML escape characters, remove excess white space, and remove emojis
 			fileName = WebUtility.HtmlEncode(fileName);
 			fileName = Regex.Replace(fileName, @"&#[0-9]{5,};", "");
 			fileName = WebUtility.HtmlDecode(fileName);
 			fileName = fileName.Replace("&amp;", "&").Replace("&lt;3", "♡").Replace("&gt;","");
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
-
-			// e.g., "2020-01-15 10-File Name.jpg
 			fileName = DateTime.Now.ToString("yyyy-MM-dd")
-				+ " " + ++_fileIndex + "-" + fileName.Replace(".", "").Trim()
+				+ " " + fileName.Replace(".", "").Trim()
 				+ "." + fileExtension;
 
 			foreach(char c in Path.GetInvalidFileNameChars())
@@ -252,8 +156,6 @@ namespace RedditScraper
 			}
 		}
 
-		// Needed to overcome url changes which happen automatically when browsing
-		// but not when web crawling
 		private static void FixImageUrl(ref string imageUrl)
 		{
 			switch (imageUrl)
@@ -269,7 +171,6 @@ namespace RedditScraper
 			}
 		}
 
-		// Use the gfycat API to find the URL of the associated file
 		private static void GetGifyCatUrl(ref string url)
 		{
 			var request = (HttpWebRequest)WebRequest.Create($@"https://api.gfycat.com/v1/gfycats/" + url.Split('/').Last());
@@ -308,8 +209,6 @@ namespace RedditScraper
 				wc.DownloadFileCompleted += DownloadFileCompleted;
 				wc.DownloadProgressChanged += UpdateDownloadProgress;
 
-				// Locking the thread and making a sync download into
-				// a psuedo async one so we have access to the download events
 				var syncObject = new object();
 				lock (syncObject)
 				{
@@ -321,10 +220,7 @@ namespace RedditScraper
 
         private static void DeleteBadFiles()
 		{
-			int badExtensionFiles = 0;
-			int removedFiles = 0;
 			int deletedFiles = 0;
-			int brokenFiles = 0;
 
             var filesToDelete = new List<string>();
 			var files = Directory.GetFiles(_directory);
@@ -332,15 +228,7 @@ namespace RedditScraper
 			{
 				var fileInfo = new FileInfo(file);
 				var length = fileInfo.Length;
-				var exten = fileInfo.Extension;
-
-                if (fileInfo == null) return;
-				if (length == 0) brokenFiles++;
-				if (length == 503) removedFiles++;
-				if (string.IsNullOrWhiteSpace(exten) || exten.Length > 6 || exten.Contains("com"))
-				{
-					badExtensionFiles++;
-				}
+				var exten = fileInfo.Name.Split('.').LastOrDefault();
 
 				if (length == 0 || length == 503 || exten.Length > 6 ||string.IsNullOrWhiteSpace(exten) ||exten.Contains("com"))
                 {
@@ -349,16 +237,6 @@ namespace RedditScraper
             }
 
             if (!filesToDelete.Any()) return;
-
-            Show(new[]
-            {
-                "Looking through the files downloaded, there were:",
-                $"{brokenFiles} were improperly downloaded...",
-                $"{removedFiles} are no longer availible...",
-                $"{badExtensionFiles} have an unknown file extension...",
-            });
-
-            if (!Confirm(new[] { "Remove corrupted files? [Y/n]" })) return;
 
             filesToDelete.ForEach(x =>
             {
@@ -370,39 +248,9 @@ namespace RedditScraper
             Show(new[]
 			{
                 string.Empty,
-				$"{deletedFiles} files have been deleted overall...",
+				$"{deletedFiles} files have been deleted...",
 				$"{files.Length - deletedFiles} remain from {_subreddit}...",
 			});
-		}
-
-        private static void PromptForReset()
-        {
-            if (!Confirm(new[] { "Download More? [Y/n]" })) return;
-
-			_inputSubreddit = default;
-			_fileIndex = default;
-            _amount = default;
-
-            Main(new string[] { });
-        }
-
-        #region Console Helpers
-        // Ask user for input. If the answer wasn't given, return the default value.
-        private static string GetInput(string prompt, string defaultAnswer)
-		{
-			ReturnPrompt();
-			Console.Write(prompt);
-			var input = Console.ReadLine();
-			if (string.IsNullOrWhiteSpace(input))
-			{
-				Console.SetCursorPosition(prompt.Length, Console.CursorTop - 1);
-				Console.Write(defaultAnswer);
-				Console.WriteLine();
-				Console.WriteLine();
-				return defaultAnswer;
-			}
-			Console.WriteLine();
-			return input;
 		}
 
         // Alternate colors for the console then return the color to white
@@ -419,26 +267,6 @@ namespace RedditScraper
 			}
 			Console.WriteLine();
 			Console.ForegroundColor = ConsoleColor.White;
-		}
-
-        // Prompt user for a boolean value. Not letting anything other than y/n/enter be entered.
-		private static bool Confirm(string[] prompt)
-		{
-			ConsoleKey res;
-			do
-			{
-				Show(prompt);
-				ReturnPrompt();
-				res = Console.ReadKey(false).Key;
-				if (res != ConsoleKey.Enter)
-				{
-					Console.WriteLine();
-				}
-			} while (res != ConsoleKey.Y && res != ConsoleKey.N && res != ConsoleKey.Enter);
-
-			Console.WriteLine(res == ConsoleKey.Y || res == ConsoleKey.Enter ? "yes" : "no");
-			Console.WriteLine();
-			return (res == ConsoleKey.Y || res == ConsoleKey.Enter);
 		}
 
         // Toggle between three colors.
@@ -472,10 +300,6 @@ namespace RedditScraper
                 Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
             }
         }
-        #endregion
-
-        #region Event Handlers
-        // Write to console when a download progress event is triggered. Show filename and progress bar.
         private static void UpdateDownloadProgress(object sender, DownloadProgressChangedEventArgs e)
         {
             int progress = e.ProgressPercentage;
@@ -516,6 +340,5 @@ namespace RedditScraper
                 Monitor.Pulse(e.UserState);
             }
         }
-        #endregion
     }
 }
