@@ -32,13 +32,12 @@ namespace RedditScraper
 			GetInput(args);
 
             DownloadRedditPosts();
-
-            DeleteBadFiles();
         }
 
 		private static void Intro()
 		{
 			Console.Title = "Reddit Scraper";
+			Console.ForegroundColor = FlipColors();
 			Show(new[]
 			{
 @"  _____          _     _ _ _      _____                                
@@ -95,17 +94,20 @@ namespace RedditScraper
 				}
 				var redditPosts = caller.EndInvoke(result);
 				Console.WriteLine("\n");
+				Console.ForegroundColor = FlipColors();
 
 				_directory = $@"C:\reddit\reddit\{subreddit}\";
 				Directory.CreateDirectory(_directory);
 
 				Show(new[] { $"Downloading files from {_subreddit}" });
+				Console.ForegroundColor = FlipColors();
 
-				foreach(var post in redditPosts)
+				foreach (var post in redditPosts)
 				{
 					DownloadImage(post);
 				}
 				Console.WriteLine();
+				DeleteBadFiles();
 			}
 		}
 
@@ -146,7 +148,8 @@ namespace RedditScraper
 			fileName = fileName.Replace("&amp;", "&").Replace("&lt;3", "♡").Replace("&gt;","");
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
-			fileName = DateTime.Now.ToString("yyyy-MM-dd")
+
+			fileName = (10000000000 - DateTimeOffset.Now.ToUnixTimeSeconds())
 				+ " " + fileName.Replace(".", "").Trim()
 				+ "." + fileExtension;
 
@@ -256,17 +259,11 @@ namespace RedditScraper
         // Alternate colors for the console then return the color to white
 		private static void Show(string[] texts)
 		{
-			Console.ForegroundColor = _magOrCy 
-				? ConsoleColor.Magenta 
-				: ConsoleColor.Cyan;
-			_magOrCy = !_magOrCy;
-
 			foreach (var text in texts)
 			{
 				Console.WriteLine(text);
 			}
 			Console.WriteLine();
-			Console.ForegroundColor = ConsoleColor.White;
 		}
 
         // Toggle between three colors.
