@@ -15,12 +15,13 @@ namespace RedditScraper
 	class Program
 	{
 		#region Field Variables
+		private static readonly DateTime _StartDate = new DateTime(2020, 1, 1);
 		private delegate List<(string, string)> RedditPostCaller();
 		private static List<string> _subreddits;
 		private static Subreddit _subreddit;
         private static string _directory;
+		private static int _fileIndex;
 		private static FromTime _time;
-		private static bool _magOrCy;
 		private static int _amount;
 		private static int _color;
         #endregion
@@ -108,6 +109,7 @@ namespace RedditScraper
 				}
 				Console.WriteLine();
 				DeleteBadFiles();
+				_fileIndex = 0;
 			}
 		}
 
@@ -149,9 +151,9 @@ namespace RedditScraper
 			fileName = Regex.Replace(fileName, @"\s{2,}", " ").Trim();
 			fileName = fileName.Substring(0, Math.Min(225, fileName.Length));
 
-			fileName = (10000000000 - DateTimeOffset.Now.ToUnixTimeSeconds())
-				+ " " + fileName.Replace(".", "").Trim()
-				+ "." + fileExtension;
+			string amount = _amount > 1 ? ($"-{++_fileIndex}").ToString() : "";
+			var daysSince = 1000 - Math.Floor((DateTime.Now - _StartDate).TotalDays);
+			fileName = $"{daysSince}{amount} {fileName.Replace(".", "").Trim()}.{fileExtension}";
 
 			foreach(char c in Path.GetInvalidFileNameChars())
 			{
