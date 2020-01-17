@@ -1,61 +1,52 @@
 ﻿using RedditSharp;
 using RedditSharp.Things;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
 
 namespace RedditScraper
 {
 	class Program
 	{
-		#region Field Variables
-		private delegate string RedditPostCaller();
-		private static Subreddit _subreddit;
         private static string _directory;
-        #endregion
+		private static string _filePath;
+		private static string _optSubreddit;
+		private static Subreddit _subreddit;
 
         private static void Main(string[] args)
 		{
-            DownloadRedditPost();
+			_optSubreddit = args.Length > 0 ? args[0] : "wallpaper";
+			DownloadRedditPost();
 			ChangeWallpaper();
         }
 
-
 		private static void DownloadRedditPost()
 		{
-				_subreddit = new Reddit().GetSubreddit("/r/wallpaper");
+			_subreddit = new Reddit().GetSubreddit($"/r/{_optSubreddit}");
 
-            var caller = new RedditPostCaller(GetRedditPost);
-            IAsyncResult result = caller.BeginInvoke(null, null);
-
-
-            var post = caller.EndInvoke(result);
 			_directory = $@"C:\reddit\wallpaper\";
 			Directory.CreateDirectory(_directory);
 
-			DownloadImage(post);
-
+			DownloadImage(GetRedditPost());
 		}
 
         private static string GetRedditPost() => _subreddit.GetTop(FromTime.Day).Take(1).Select(x => x.Url.ToString()).First();
 
 		private static void DownloadImage(string url)
 		{
-			
 			FixImageUrl(ref url);
 			string fileName = FixFileName(url);
 
 			if (string.IsNullOrWhiteSpace(url)) return;
 
-			string path = _directory + fileName;
-			DownloadFile(new Uri(url), path);
+			_filePath = _directory + fileName;
+			using (var wc = new WebClient())
+			{
+				wc.DownloadFile(url, _filePath);
+			}
 		}
 
 		private static string FixFileName(string url)
@@ -76,8 +67,6 @@ namespace RedditScraper
 			return fileName;
 		}
 
-		// Needed to overcome url changes which happen automatically when browsing
-		// but not when web crawling
 		private static void FixImageUrl(ref string imageUrl)
 		{
 			switch (imageUrl)
@@ -85,13 +74,9 @@ namespace RedditScraper
 				case string url when url.Contains("gfycat.com"):
 					GetGifyCatUrl(ref imageUrl);
 					break;
-				case string url when url.Contains(".gifv"):
-					imageUrl = imageUrl.Replace(".gifv", ".gif");
-					break;
 			}
 		}
 
-		// Use the gfycat API to find the URL of the associated file
 		private static void GetGifyCatUrl(ref string url)
 		{
 			var request = (HttpWebRequest)WebRequest.Create($@"https://api.gfycat.com/v1/gfycats/" + url.Split('/').Last());
@@ -115,35 +100,9 @@ namespace RedditScraper
 			} catch (Exception) { }
 		}
 
-		private static void DownloadFile(Uri uri, string destination)
-		{
-			using (var wc = new WebClient())
-			{
-				var now = DateTime.Now.ToLongTimeString();
-
-				// Locking the thread and making a sync download into
-				// a psuedo async one so we have access to the download events
-				wc.DownloadFile(uri, destination);
-			}
-		}
-
 		[DllImport("user32.dll", CharSet = CharSet.Auto)]
 		private static extern int SystemParametersInfo
-		(
-			uint uiAction,
-			uint uiParam,
-			string pvParam,
-			uint fWinIni
-		);
-
-		private static uint SPI_SETDESKWALLPAPER = 20;
-
-		private static uint SPIF_UPDATEINIFILE = 0x1;
-
-		static void ChangeWallpaper()
-		{
-			string[] files = Directory.EnumerateFiles(@"C:\reddit\wallpaper\").ToArray();
-			SystemParametersInfo(SPI_SETDESKWALLPAPER, 1, files[0].ToString(), SPIF_UPDATEINIFILE);
-		}
+		(uint uiAction, uint uiParam, string pvParam, uint fWinIni);
+		static void ChangeWallpaper() => SystemParametersInfo(20, 1, _filePath, 0x1);
 	}
 }
