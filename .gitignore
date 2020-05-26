@@ -260,3 +260,4 @@ paket-files/
 __pycache__/
 *.pyc
 /ReditScraper/subreddits.txt
+/ReditScraper/imgur-api-key.txt
