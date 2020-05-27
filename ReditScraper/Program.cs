@@ -9,27 +9,24 @@ namespace RedditScraper
 {
     class Program
 	{
-        #region Files
-        private static readonly string _rootDirectory = AppDomain.CurrentDomain.BaseDirectory;
-		private static readonly string _imgurApiKey = File.Exists(_rootDirectory + "imgur-api-key.txt") ? File.ReadAllText(_rootDirectory + "imgur-api-key.txt") : "";
-		private static readonly string _destination = File.Exists(_rootDirectory + "destination.txt") ? File.ReadAllText(_rootDirectory + "destination.txt") : Environment.ExpandEnvironmentVariables(@"%userprofile%\Downloads\RedditScraper");
-		private static readonly string[] _subreddits = File.Exists(_rootDirectory + "subreddits.txt") ? File.ReadAllLines(_rootDirectory + "subreddits.txt") : new []{ "EarthPorn", "FoodPorn", "HumanPorn", "OldSchoolCool" };
+		#region Files
+		private static Settings _settings = new Settings();
 		#endregion
         private static void Main(string[] args)
 		{
             DownloadRedditPosts();
-		}
+        }
 
 		private static void DownloadRedditPosts()
 		{
-            foreach (var subreddit in _subreddits)
+            foreach (var subreddit in _settings.Subreddits)
             {
-                var directory = $@"{_destination}\{subreddit}\";
+                var directory = $@"{_settings.Destination}\{subreddit}\";
                 var subredditPage = new Reddit().GetSubreddit($"/r/{subreddit}") ?? throw new WebException();
-                var post = subredditPage.GetTop(RedditSharp.Things.FromTime.Day).Select(x => (url: x.Url.ToString(), title: x.Title)).FirstOrDefault();
+                var posts = subredditPage.GetTop(RedditSharp.Things.FromTime.Day).Select(x => (url: x.Url.ToString(), title: x.Title)).Take(_settings.Amount).ToList();
 
                 Directory.CreateDirectory(directory);
-                DownloadImage(post, directory);
+                posts.ForEach(post => DownloadImage(post, directory));
                 DeleteBadFile(directory);
             }
         }
@@ -38,11 +35,14 @@ namespace RedditScraper
 		{
 			var fileTypes = new []{ ".JPG", ".JPE", ".BMP", ".GIF", ".PNG", ".MP4" };
 
-            var file = new DirectoryInfo(directory).GetFiles().OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
-            if (file != null && file.Length == 0 || file.Length == 503 || file.Length == 9236 || !fileTypes.Contains(file.Extension.ToUpper()))
-			{
-				file.Delete();
-			}
+            var files = new DirectoryInfo(directory).GetFiles().OrderByDescending(f => f.LastWriteTime).Take(_settings.Amount);
+			foreach (var file in files)
+            {
+				if (file != null && file.Length == 0 || file.Length == 503 || file.Length == 9236 || !fileTypes.Contains(file.Extension.ToUpper()))
+				{
+					file.Delete();
+				}
+            }
 		}
 
 		private static void DownloadImage((string url, string title) post, string directory)
@@ -107,7 +107,7 @@ namespace RedditScraper
             try
 			{
 				var request = WebRequest.Create(parameters.url + url.Split('/').Last());
-				if (imgur) request.Headers.Add("Authorization", _imgurApiKey);
+				if (imgur) request.Headers.Add("Authorization", _settings.ImgurApiKey);
 
 				using (WebResponse response = request.GetResponse())
 				using (Stream responseStream = response.GetResponseStream())

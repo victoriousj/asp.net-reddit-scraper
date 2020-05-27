@@ -259,6 +259,4 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
-/ReditScraper/subreddits.txt
-/ReditScraper/imgur-api-key.txt
-/ReditScraper/destination.txt
+/ReditScraper/settings.xml
