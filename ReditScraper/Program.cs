@@ -23,7 +23,7 @@ namespace RedditScraper
             {
                 var directory = $@"{_settings.Destination}\{subreddit}\";
                 var subredditPage = new Reddit().GetSubreddit($"/r/{subreddit}") ?? throw new WebException();
-                var posts = subredditPage.GetTop(RedditSharp.Things.FromTime.Day).Select(x => (url: x.Url.ToString(), title: x.Title)).Take(_settings.Amount).ToList();
+                var posts = subredditPage.GetTop(_settings.FromTime).Select(x => (url: x.Url.ToString(), title: x.Title)).Take(_settings.Amount).ToList();
 
                 Directory.CreateDirectory(directory);
                 posts.ForEach(post => DownloadImage(post, directory));
