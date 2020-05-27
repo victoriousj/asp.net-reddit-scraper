@@ -85,6 +85,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="destination.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="RedditSharper.ico" />
     <Content Include="subreddits.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

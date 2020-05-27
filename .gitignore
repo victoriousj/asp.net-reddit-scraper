@@ -261,3 +261,4 @@ __pycache__/
 *.pyc
 /ReditScraper/subreddits.txt
 /ReditScraper/imgur-api-key.txt
+/ReditScraper/destination.txt
