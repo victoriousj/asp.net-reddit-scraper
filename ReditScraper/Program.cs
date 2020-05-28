@@ -1,9 +1,11 @@
 ﻿using RedditSharp;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace RedditScraper
 {
@@ -26,6 +28,14 @@ namespace RedditScraper
                 var posts = subredditPage.GetTop(_settings.FromTime).Select(x => (url: x.Url.ToString(), title: x.Title)).Take(_settings.Amount).ToList();
 
                 Directory.CreateDirectory(directory);
+				if (_settings.ShouldCollect)
+                {
+					if (Directory.Exists(_settings.CollectionPath))
+                    {
+						Directory.Delete(_settings.CollectionPath, true);
+                    }
+					Directory.CreateDirectory(_settings.CollectionPath);
+                }
                 posts.ForEach(post => DownloadImage(post, directory));
                 DeleteBadFile(directory);
             }
@@ -57,7 +67,20 @@ namespace RedditScraper
 			string path = directory + fileName;
 			using (var wc = new WebClient())
 			{
-				try { wc.DownloadFile(new Uri(url), path); } catch { }
+				if (_settings.ShouldCollect)
+                {
+					wc.QueryString.Add("directory", directory);
+					wc.QueryString.Add("fileName", fileName);
+					wc.DownloadFileCompleted += CopyFile;
+                }
+				// Locking the thread and making a sync download into
+				// a psuedo async one so we have access to the download events
+				var syncObject = new object();
+				lock (syncObject)
+				{
+					wc.DownloadFileAsync(new Uri(url), path, syncObject);
+					Monitor.Wait(syncObject);
+				}
 			}
 		}
 
@@ -118,6 +141,18 @@ namespace RedditScraper
 				}
 			}
 			catch { }
+		}
+
+		private static void CopyFile(object sender, AsyncCompletedEventArgs e)
+        {
+			string fileName = ((WebClient)sender).QueryString["fileName"];
+			string directory = ((WebClient)sender).QueryString["directory"];
+
+			File.Copy(Path.Combine(directory, fileName), Path.Combine(_settings.CollectionPath, fileName.Substring(4)));
+			lock (e.UserState)
+			{
+				Monitor.Pulse(e.UserState);
+			}
 		}
 	}
 }

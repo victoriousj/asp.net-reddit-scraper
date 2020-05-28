@@ -13,8 +13,11 @@ namespace RedditScraper
         public string[] Subreddits { get; set; }
 		public FromTime FromTime { get; set; }
 		public int Amount { get; set; } = 1;
+		public bool ShouldCollect { get; set; }
+		public string CollectionPath { get => $@"{Destination}\Today\"; }
 
-        public void GetSettings()
+
+		public void GetSettings()
         {
 			if (File.Exists("settings.xml"))
 			{
@@ -30,9 +33,11 @@ namespace RedditScraper
 				Destination = document.SelectSingleNode("//settings/destination")?.InnerText ?? Environment.ExpandEnvironmentVariables(@"%userprofile%\Downloads\RedditScraper");
 				ImgurApiKey = document.SelectSingleNode("//settings/imgurApiKey")?.InnerText ?? "";
 				int.TryParse(document.SelectSingleNode("//settings/amount")?.InnerText, out int amount);
-				Amount = Math.Max(Amount, amount);
 				int.TryParse(document.SelectSingleNode("//settings/time")?.InnerText, out int fromTime);
+				bool.TryParse(document.SelectSingleNode("//settings/shouldCollect")?.InnerText, out bool shouldCollect);
+				Amount = Math.Max(Amount, amount);
 				FromTime = (FromTime)fromTime;
+				ShouldCollect = shouldCollect;
 			}
 			else
 			{
@@ -40,7 +45,6 @@ namespace RedditScraper
 				{
 					Indent = true,
 					IndentChars = "    "
-
 				};
 
 				using (var writer = XmlWriter.Create("settings.xml", settings))
@@ -67,6 +71,10 @@ namespace RedditScraper
 							writer.WriteFullEndElement();
 
 						writer.WriteEndElement();
+
+						writer.WriteComment("Create a collection of these posts in one folder");
+						writer.WriteStartElement("shouldCollect");
+						writer.WriteFullEndElement();
 
 						writer.WriteComment("API key from imgur... can be blank");
 						writer.WriteStartElement("imgurApiKey");
