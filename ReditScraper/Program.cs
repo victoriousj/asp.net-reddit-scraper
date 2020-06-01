@@ -1,18 +1,18 @@
 ﻿using RedditSharp;
 using System;
-using System.ComponentModel;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
-using System.Threading;
 
 namespace RedditScraper
 {
     class Program
 	{
 		#region Files
-		private static Settings _settings = new Settings();
+		private static readonly Settings _settings = new Settings();
+		private static List<(string directory, string fileName)> files = new List<(string, string)>();
 		#endregion
         private static void Main(string[] args)
 		{
@@ -21,34 +21,44 @@ namespace RedditScraper
 
 		private static void DownloadRedditPosts()
 		{
-            foreach (var subreddit in _settings.Subreddits)
-            {
-                var directory = $@"{_settings.Destination}\{subreddit}\";
-                var subredditPage = new Reddit().GetSubreddit($"/r/{subreddit}") ?? throw new WebException();
-                var posts = subredditPage.GetTop(_settings.FromTime).Select(x => (url: x.Url.ToString(), title: x.Title)).Take(_settings.Amount).ToList();
+			if (_settings.ShouldCollect)
+			{
+				if (Directory.Exists(_settings.CollectionPath)) Directory.Delete(_settings.CollectionPath, true);
+				Directory.CreateDirectory(_settings.CollectionPath);
+			}
+			foreach (var subreddit in _settings.Subreddits)
+			{
+				var directory = $@"{_settings.Destination}\{subreddit}\";
+				var subredditPage = new Reddit().GetSubreddit($"/r/{subreddit}") ?? throw new WebException();
+				var posts = subredditPage
+					.GetTop(_settings.FromTime)
+					.Select(x => ($"{x.Url}", x.Title))
+					.Take(_settings.Amount)
+					.ToList();
 
                 Directory.CreateDirectory(directory);
-				if (_settings.ShouldCollect)
-                {
-					if (Directory.Exists(_settings.CollectionPath))
-                    {
-						Directory.Delete(_settings.CollectionPath, true);
-                    }
-					Directory.CreateDirectory(_settings.CollectionPath);
-                }
-                posts.ForEach(post => DownloadImage(post, directory));
+				posts.ForEach(post => DownloadImage(post, directory));
                 DeleteBadFile(directory);
+            }
+			if (_settings.ShouldCollect)
+            {
+				CopyFiles();
             }
         }
 
 		private static void DeleteBadFile(string directory)
 		{
 			var fileTypes = new []{ ".JPG", ".JPE", ".BMP", ".GIF", ".PNG", ".MP4" };
+			var removedPostFileSize = new[] { 0, 503, 9236 };
 
-            var files = new DirectoryInfo(directory).GetFiles().OrderByDescending(f => f.LastWriteTime).Take(_settings.Amount);
+            var files = new DirectoryInfo(directory)
+				.GetFiles()
+				.OrderByDescending(f => f.LastWriteTime)
+				.Take(_settings.Amount);
+
 			foreach (var file in files)
             {
-				if (file != null && file.Length == 0 || file.Length == 503 || file.Length == 9236 || !fileTypes.Contains(file.Extension.ToUpper()))
+				if (file != null && removedPostFileSize.Any(x => x == file.Length) || !fileTypes.Contains(file.Extension.ToUpper()))
 				{
 					file.Delete();
 				}
@@ -61,26 +71,21 @@ namespace RedditScraper
 			
 			FixFileAndURL(ref fileName, ref url);
 
+			// Do not download the same file day after day.
 			var lastFile = new DirectoryInfo(directory).GetFiles().OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
 			if (lastFile != null && lastFile.Name.Contains(fileName.Substring(4)) || string.IsNullOrWhiteSpace(url)) return;
 
 			string path = directory + fileName;
 			using (var wc = new WebClient())
 			{
-				if (_settings.ShouldCollect)
-                {
-					wc.QueryString.Add("directory", directory);
-					wc.QueryString.Add("fileName", fileName);
-					wc.DownloadFileCompleted += CopyFile;
-                }
-				// Locking the thread and making a sync download into
-				// a psuedo async one so we have access to the download events
-				var syncObject = new object();
-				lock (syncObject)
-				{
-					wc.DownloadFileAsync(new Uri(url), path, syncObject);
-					Monitor.Wait(syncObject);
-				}
+				try 
+				{ 
+					wc.DownloadFile(new Uri(url), path); 
+					if (_settings.ShouldCollect)
+					{
+						files.Add((directory, fileName));
+					}
+				} catch { }
 			}
 		}
 
@@ -94,7 +99,11 @@ namespace RedditScraper
 				imgur: fileExtension.Contains("com") && url.Contains("imgur.com"), 
 				transfer : fileExtension.Contains("com") && url.Contains("gfycat.com")
 			);
-			fileExtension = url.Split('.').Last();
+			fileExtension = url.Split('.').Last().Substring(0,3);
+			if (fileExtension.Length > 3)
+            {
+				fileExtension = fileExtension.Substring(0, 3);
+            }
 
 			fileName = WebUtility.HtmlEncode(fileName);
 			fileName = Regex.Replace(fileName, @"&#[0-9]{5,};", "").Replace(@"\s+", " ");
@@ -143,16 +152,24 @@ namespace RedditScraper
 			catch { }
 		}
 
-		private static void CopyFile(object sender, AsyncCompletedEventArgs e)
+		private static void CopyFiles()
         {
-			string fileName = ((WebClient)sender).QueryString["fileName"];
-			string directory = ((WebClient)sender).QueryString["directory"];
+			int index = 0;
+			foreach(var (directory, fileName) in files)
+            {
+				var subredditName = directory.Split('\\').Reverse().Skip(1).FirstOrDefault();
+				var indexStr = _settings.Amount > 1 ? (++index).ToString() + "-" : "";
 
-			File.Copy(Path.Combine(directory, fileName), Path.Combine(_settings.CollectionPath, fileName.Substring(4)));
-			lock (e.UserState)
-			{
-				Monitor.Pulse(e.UserState);
+				var destinationName = $"{indexStr}{subredditName}-{fileName.Substring(4)}";
+				var destination = Path.Combine(_settings.CollectionPath, destinationName);
+				
+				var source = Path.Combine(directory, fileName);
+				
+				if (File.Exists(source))
+                {
+					File.Copy(source, destination);
+                }
 			}
-		}
+        }
 	}
 }
